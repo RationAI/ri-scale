@@ -1,0 +1,4 @@
+seed: 42
+val_fraction: 0.15
+test_fraction: 0.15
+n_folds: 5

@@ -1,0 +1,10 @@
+# @package _global_
+
+max_workers: 4
+slides_dir: ???   # path to directory containing .mrxs slide files
+
+metadata:
+  run_name: Build Dataset
+  description: Scan slides directory and build slides.csv + patients.csv
+  hyperparams:
+    slides_dir: ${slides_dir}

@@ -1,0 +1,17 @@
+defaults:
+  - hydra: default
+  - logger: mlflow
+  - model: default
+  - training: default
+  - _self_
+
+metadata:
+  experiment_name: Tissue Classifier
+  run_name: "fold_${fold}"
+  description: "Binary LN vs colorectum classification, held-out fold ${fold}"
+
+# path to the splits/ directory produced by split_dataset.py
+splits_dir: ???
+
+# which fold (0-4) to hold out as the Lightning val set during training
+fold: 0

@@ -1,0 +1,18 @@
+# @package _global_
+
+slides_uri: ???    # e.g. runs:/<run_id>/slides.csv
+output_dir: ???    # local directory to write split CSVs into
+
+seed: 42
+val_fraction: 0.15
+test_fraction: 0.15
+n_folds: 5
+
+metadata:
+  run_name: Dataset Split
+  description: Split slides into train folds / val / test respecting patient grouping
+  hyperparams:
+    seed: ${seed}
+    val_fraction: ${val_fraction}
+    test_fraction: ${test_fraction}
+    n_folds: ${n_folds}
