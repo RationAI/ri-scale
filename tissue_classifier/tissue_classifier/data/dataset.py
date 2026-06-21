@@ -1,6 +1,13 @@
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import cast
 
+import pyarrow as pa
 import torch
+from datasets import Dataset as HFDataset
+from datasets import load_dataset
+from mlflow.artifacts import download_artifacts
 from rationai.mlkit.data.datasets.meta_tiled_slides import MetaTiledSlides
 from openslide import OpenSlide
 from torch.utils.data import Dataset
@@ -57,15 +64,24 @@ class _SlideThumbnail(Dataset[tuple[torch.Tensor, int]]):
         return thumb, self.label
 
 
+def _find_slides_parquet(p: Path) -> str | None:
+    """Return path to slides.parquet whether p is the file itself or its parent folder."""
+    if p.is_dir() and (p / "slides.parquet").exists():
+        return str(p / "slides.parquet")
+    if p.is_file() and p.name == "slides.parquet":
+        return str(p)
+    return None
+
+
 class ThumbnailDataset(MetaTiledSlides[tuple[torch.Tensor, int]]):
     """Thumbnail-level slide dataset.
 
-    Subclasses MetaTiledSlides for MLflow artifact downloading and multi-source
-    concatenation. Each slide contributes exactly one item (its thumbnail).
+    Subclasses MetaTiledSlides for MLflow artifact downloading and
+    multi-source concatenation. Each slide contributes exactly one item
+    (its thumbnail). Does not require tiles.parquet.
 
-    Expected artifact layout per split / fold folder:
-        slides.parquet   — columns: slide_path, tissue_type, case_id
-        tiles.parquet    — empty (required by MetaTiledSlides; produced by save_splits)
+    URIs may point to a folder containing slides.parquet or to the
+    slides.parquet file directly.
     """
 
     def __init__(
@@ -78,6 +94,29 @@ class ThumbnailDataset(MetaTiledSlides[tuple[torch.Tensor, int]]):
         self.thumbnail_size = tuple(thumbnail_size)
         self.transform = transform
         super().__init__(**kwargs)
+
+    @staticmethod
+    def load_slides_and_tiles(
+        paths: Iterable[str | Path], uris: Iterable[str]
+    ) -> tuple[HFDataset, HFDataset]:
+        with ThreadPoolExecutor() as executor:
+            artifact_paths = list(
+                executor.map(lambda uri: download_artifacts(artifact_uri=uri), uris)
+            )
+
+        slide_files = []
+        for raw in (*paths, *artifact_paths):
+            hit = _find_slides_parquet(Path(raw))
+            if hit:
+                slide_files.append(hit)
+
+        empty_tiles = HFDataset(pa.table({"slide_id": pa.array([], type=pa.string())}))
+
+        if not slide_files:
+            return HFDataset.from_dict({}), empty_tiles
+
+        slides_ds = load_dataset("parquet", data_files=slide_files, split="train")
+        return cast("HFDataset", slides_ds), empty_tiles
 
     def generate_datasets(self) -> Iterable[_SlideThumbnail]:
         for slide in self.slides:
