@@ -7,7 +7,7 @@ import hydra
 import mlflow
 import pandas as pd
 from omegaconf import DictConfig
-from openslide import OpenSlide
+from openslide import OpenSlide, OpenSlideError
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from tqdm import tqdm
@@ -37,11 +37,14 @@ def _process_slide(path: str) -> dict | None:
         log.warning("Skipping unrecognised filename: %s", path)
         return None
 
-    meta = (
-        {"mpp_x": float("nan"), "mpp_y": float("nan"), "n_levels": None, "vendor": None}
-        if parsed.excluded
-        else _read_slide_metadata(path)
-    )
+    if parsed.excluded:
+        meta = {"mpp_x": float("nan"), "mpp_y": float("nan"), "n_levels": None, "vendor": None}
+    else:
+        try:
+            meta = _read_slide_metadata(path)
+        except OpenSlideError as e:
+            log.warning("Skipping unreadable slide %s: %s", Path(path).name, e)
+            return None
 
     return {
         "slide_path": path,

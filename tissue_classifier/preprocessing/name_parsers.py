@@ -6,14 +6,16 @@ LN_LABELS = frozenset({"LNN", "LNP"})
 COLORECTUM_LABELS = frozenset({"CA", "T", "N"})
 _ALL_KNOWN_LABELS = frozenset({"LNN", "LNP", "CA", "T", "N", "MET", "M", "GMN"})
 
+_LABEL_ALT = "|".join(sorted(_ALL_KNOWN_LABELS, key=len, reverse=True))
+# Accepts both underscore and hyphen as year-case separator: 2016_01360 or 2016-01360
 _PATTERN = re.compile(
-    r"^(\d{4})_(\d+)-(\d+)-(" + "|".join(sorted(_ALL_KNOWN_LABELS, key=len, reverse=True)) + r")\.mrxs$"
+    r"^(\d{4})([-_])(\d+)-(\d+)-(" + _LABEL_ALT + r")\.mrxs$"
 )
 
 
 @dataclass
 class ParsedFilename:
-    case_id: str       # e.g. "2016_01360"
+    case_id: str       # e.g. "2016_01360" or "2016-01360" (preserves original separator)
     slide_num: str     # e.g. "02"
     label: str         # raw suffix, e.g. "LNN"
     tissue_type: str   # "LN" | "colorectum" | "excluded"
@@ -26,7 +28,7 @@ def parse_filename(filename: str) -> ParsedFilename:
     if not match:
         raise ValueError(f"Filename does not match expected pattern: {filename!r}")
 
-    year, case_num, slide_num, label = match.groups()
+    year, sep, case_num, slide_num, label = match.groups()
     case_id = f"{year}_{case_num}"
 
     if label in LN_LABELS:
