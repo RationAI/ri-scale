@@ -1,5 +1,6 @@
-max_epochs: 50
-batch_size: 32
+max_epochs: 100
+patience: 10
+batch_size: 64
 num_workers: 4
 lr: 1.0e-4
 weight_decay: 1.0e-5

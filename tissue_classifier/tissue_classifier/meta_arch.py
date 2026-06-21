@@ -14,17 +14,15 @@ class MetaArch(LightningModule):
     def __init__(
         self,
         backbone: Backbone,
-        head: ClassifierHead,
         lr: float = 1e-4,
         weight_decay: float = 1e-5,
     ) -> None:
         super().__init__()
         self.backbone = backbone
-        self.head = head
+        self.head = ClassifierHead(in_features=backbone.feature_dim)
         self.criterion = nn.BCEWithLogitsLoss()
         self.lr = lr
         self.weight_decay = weight_decay
-        self.save_hyperparameters(ignore=["backbone", "head"])
 
         metrics = MetricCollection({
             "auroc": BinaryAUROC(),

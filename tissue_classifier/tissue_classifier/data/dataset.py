@@ -1,7 +1,7 @@
-from pathlib import Path
+from collections.abc import Iterable
 
-import pandas as pd
 import torch
+from rationai.mlkit.data.datasets.meta_tiled_slides import MetaTiledSlides
 from openslide import OpenSlide
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
@@ -33,49 +33,57 @@ def build_eval_transform(thumbnail_size: tuple[int, int]) -> v2.Compose:
     ])
 
 
-class InferenceDataset(Dataset):
-    """Dataset for unlabeled slides — returns (tensor, slide_path) pairs."""
-
+class _SlideThumbnail(Dataset[tuple[torch.Tensor, int]]):
     def __init__(
         self,
-        slide_paths: list[str],
-        thumbnail_size: tuple[int, int] = (512, 512),
-        transform: v2.Compose | None = None,
+        slide_path: str,
+        label: int,
+        thumbnail_size: tuple[int, int],
+        transform: v2.Compose | None,
     ) -> None:
-        self.slide_paths = slide_paths
+        self.slide_path = slide_path
+        self.label = label
         self.thumbnail_size = thumbnail_size
         self.transform = transform
 
     def __len__(self) -> int:
-        return len(self.slide_paths)
+        return 1
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, str]:
-        path = self.slide_paths[idx]
-        with OpenSlide(path) as slide:
+    def __getitem__(self, _: int) -> tuple[torch.Tensor, int]:
+        with OpenSlide(self.slide_path) as slide:
             thumb = slide.get_thumbnail(self.thumbnail_size).convert("RGB")
         if self.transform is not None:
             thumb = self.transform(thumb)
-        return thumb, path
+        return thumb, self.label
 
 
-class ThumbnailDataset(Dataset):
+class ThumbnailDataset(MetaTiledSlides[tuple[torch.Tensor, int]]):
+    """Thumbnail-level slide dataset.
+
+    Subclasses MetaTiledSlides for MLflow artifact downloading and multi-source
+    concatenation. Each slide contributes exactly one item (its thumbnail).
+
+    Expected artifact layout per split / fold folder:
+        slides.parquet   — columns: slide_path, tissue_type, case_id
+        tiles.parquet    — empty (required by MetaTiledSlides; produced by save_splits)
+    """
+
     def __init__(
         self,
-        slides_csv: Path | str,
+        *,
         thumbnail_size: tuple[int, int] = (512, 512),
         transform: v2.Compose | None = None,
+        **kwargs,
     ) -> None:
-        self.slides = pd.read_csv(slides_csv)
-        self.thumbnail_size = thumbnail_size
+        self.thumbnail_size = tuple(thumbnail_size)
         self.transform = transform
+        super().__init__(**kwargs)
 
-    def __len__(self) -> int:
-        return len(self.slides)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
-        row = self.slides.iloc[idx]
-        with OpenSlide(row["slide_path"]) as slide:
-            thumb = slide.get_thumbnail(self.thumbnail_size).convert("RGB")
-        if self.transform is not None:
-            thumb = self.transform(thumb)
-        return thumb, LABEL_MAP[row["tissue_type"]]
+    def generate_datasets(self) -> Iterable[_SlideThumbnail]:
+        for slide in self.slides:
+            yield _SlideThumbnail(
+                slide_path=slide["slide_path"],
+                label=LABEL_MAP[slide["tissue_type"]],
+                thumbnail_size=self.thumbnail_size,
+                transform=self.transform,
+            )

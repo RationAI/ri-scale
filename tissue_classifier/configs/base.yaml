@@ -3,16 +3,22 @@ defaults:
   - logger: mlflow
   - model: default
   - training: default
+  - trainer: default
+  - data/splits: mmci
   - _self_
 
+seed: 42
+mode: fit        # fit | validate | test | predict
+checkpoint: null # path or mlflow-artifacts:// URI; used as ckpt_path when mode != fit
+
+thumbnail_size: [512, 512]
+
+data:
+  batch_size: ${training.batch_size}
+  num_workers: ${training.num_workers}
+  # train / val / test dataset configs are merged from data/splits: mmci
+
 metadata:
-  experiment_name: Tissue Classifier
-  run_name: "fold_${fold}"
-  description: "Binary LN vs colorectum classification, held-out fold ${fold}"
-
-# path to the splits/ directory produced by split_dataset.py
-splits_dir: ???
-
-# which fold (0-4) to hold out as the Lightning val set during training
-fold: 0
-n_folds: 5
+  experiment_name: RI Scale
+  run_name: ???
+  description: "Binary LN vs colorectum classification"

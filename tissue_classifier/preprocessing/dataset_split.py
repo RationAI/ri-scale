@@ -12,6 +12,8 @@ from rationai.mlkit.lightning.loggers import MLFlowLogger
 from ratiopath.model_selection import train_test_split
 from sklearn.model_selection import StratifiedGroupKFold
 
+from preprocessing.patient_dataset import build_patients_df
+
 
 def _stratify_labels(slides: pd.DataFrame) -> np.ndarray | None:
     y = slides["tissue_type"].values
@@ -86,11 +88,13 @@ def save_splits(
             for k, fold_df in enumerate(data):
                 fold_dir = output_dir / name / f"fold_{k}"
                 fold_dir.mkdir(parents=True, exist_ok=True)
-                fold_df.to_csv(fold_dir / "slides.csv", index=False)
+                fold_df.to_parquet(fold_dir / "slides.parquet", index=False)
+                build_patients_df(fold_df).to_parquet(fold_dir / "patients.parquet", index=False)
         else:
             split_dir = output_dir / name
             split_dir.mkdir(parents=True, exist_ok=True)
-            data.to_csv(split_dir / "slides.csv", index=False)
+            data.to_parquet(split_dir / "slides.parquet", index=False)
+            build_patients_df(data).to_parquet(split_dir / "patients.parquet", index=False)
 
 
 def log_split_metrics(splits: dict[str, pd.DataFrame | list[pd.DataFrame]]) -> dict[str, int]:
