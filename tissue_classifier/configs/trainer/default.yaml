@@ -10,3 +10,4 @@ callbacks:
     monitor: val/auroc
     mode: max
     patience: ${patience}
+  - _target_: tissue_classifier.callbacks.PredictionLogger

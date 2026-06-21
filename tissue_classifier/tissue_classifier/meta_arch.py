@@ -36,15 +36,15 @@ class MetaArch(LightningModule):
     def forward(self, x: Tensor) -> Tensor:
         return self.head(self.backbone(x))
 
-    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
-        x, y = batch
+    def training_step(self, batch: tuple[Tensor, Tensor, list], batch_idx: int) -> Tensor:
+        x, y, *_ = batch
         logits = self(x)
         loss = self.criterion(logits, y.float())
         self.log("train/loss", loss, on_step=True, prog_bar=True)
         return loss
 
-    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> None:
-        x, y = batch
+    def validation_step(self, batch: tuple[Tensor, Tensor, list], batch_idx: int) -> None:
+        x, y, *_ = batch
         logits = self(x)
         loss = self.criterion(logits, y.float())
         self.log("val/loss", loss, on_epoch=True, prog_bar=True)
@@ -54,10 +54,12 @@ class MetaArch(LightningModule):
         self.log_dict(self.val_metrics.compute(), on_epoch=True)
         self.val_metrics.reset()
 
-    def test_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> None:
-        x, y = batch
+    def test_step(self, batch: tuple[Tensor, Tensor, list], batch_idx: int) -> dict:
+        x, y, paths = batch
         logits = self(x)
         self.test_metrics.update(logits, y)
+        probs = torch.sigmoid(logits).cpu()
+        return {"paths": paths, "probs": probs, "labels": y.cpu()}
 
     def on_test_epoch_end(self) -> None:
         self.log_dict(self.test_metrics.compute(), on_epoch=True)

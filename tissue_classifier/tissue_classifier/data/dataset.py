@@ -56,12 +56,12 @@ class _SlideThumbnail(Dataset[tuple[torch.Tensor, int]]):
     def __len__(self) -> int:
         return 1
 
-    def __getitem__(self, _: int) -> tuple[torch.Tensor, int]:
+    def __getitem__(self, _: int) -> tuple[torch.Tensor, int, str]:
         with OpenSlide(self.slide_path) as slide:
             thumb = slide.get_thumbnail(self.thumbnail_size).convert("RGB")
         if self.transform is not None:
             thumb = self.transform(thumb)
-        return thumb, self.label
+        return thumb, self.label, self.slide_path
 
 
 def _find_slides_parquet(p: Path) -> str | None:
