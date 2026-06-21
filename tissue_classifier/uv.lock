@@ -3123,6 +3123,7 @@ name = "tissue-classifier"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "datasets" },
     { name = "lightning" },
     { name = "mlflow" },
     { name = "numpy" },
@@ -3149,6 +3150,7 @@ run = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", specifier = ">=2.0.0" },
     { name = "lightning", specifier = ">=2.5.0" },
     { name = "mlflow", specifier = ">=3.14.0" },
     { name = "numpy", specifier = ">=2.0.0" },
