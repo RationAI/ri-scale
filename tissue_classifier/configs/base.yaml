@@ -2,7 +2,6 @@ defaults:
   - hydra: default
   - logger: mlflow
   - model: default
-  - training: default
   - trainer: default
   - _self_
 

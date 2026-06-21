@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - datasets: mmci 
+  - /data/datasets/mmci@data 
 
 
 max_epochs: 100
@@ -11,6 +11,7 @@ num_workers: 4
 lr: 1.0e-4
 weight_decay: 1.0e-5
 pos_weight: 0.5  # n_colorectum / n_ln ≈ 200/400
+fold: 4
 
 
 metadata:
