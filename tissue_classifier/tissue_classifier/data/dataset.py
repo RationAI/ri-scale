@@ -33,6 +33,31 @@ def build_eval_transform(thumbnail_size: tuple[int, int]) -> v2.Compose:
     ])
 
 
+class InferenceDataset(Dataset):
+    """Dataset for unlabeled slides — returns (tensor, slide_path) pairs."""
+
+    def __init__(
+        self,
+        slide_paths: list[str],
+        thumbnail_size: tuple[int, int] = (512, 512),
+        transform: v2.Compose | None = None,
+    ) -> None:
+        self.slide_paths = slide_paths
+        self.thumbnail_size = thumbnail_size
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.slide_paths)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, str]:
+        path = self.slide_paths[idx]
+        with OpenSlide(path) as slide:
+            thumb = slide.get_thumbnail(self.thumbnail_size).convert("RGB")
+        if self.transform is not None:
+            thumb = self.transform(thumb)
+        return thumb, path
+
+
 class ThumbnailDataset(Dataset):
     def __init__(
         self,

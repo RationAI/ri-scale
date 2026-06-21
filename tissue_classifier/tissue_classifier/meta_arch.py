@@ -64,6 +64,10 @@ class MetaArch(LightningModule):
         self.log_dict(self.test_metrics.compute(), on_epoch=True)
         self.test_metrics.reset()
 
+    def predict_step(self, batch: tuple[Tensor, ...], batch_idx: int) -> Tensor:
+        x = batch[0] if isinstance(batch, (list, tuple)) else batch
+        return torch.sigmoid(self(x))
+
     def configure_optimizers(self) -> dict:
         optimizer = AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         scheduler = CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)

@@ -34,6 +34,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     datamodule = DataModule(
         splits_dir=config.splits_dir,
         val_fold=int(config.fold),
+        n_folds=int(config.n_folds),
         batch_size=int(config.training.batch_size),
         thumbnail_size=thumbnail_size,
         num_workers=int(config.training.num_workers),

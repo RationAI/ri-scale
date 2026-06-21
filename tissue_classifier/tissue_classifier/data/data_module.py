@@ -9,34 +9,22 @@ from tissue_classifier.data.dataset import (
     build_train_transform,
 )
 
-_N_FOLDS = 5
-
-
 class DataModule(LightningDataModule):
     def __init__(
         self,
         splits_dir: str | Path,
         val_fold: int,
         batch_size: int,
+        n_folds: int = 5,
         thumbnail_size: tuple[int, int] = (512, 512),
         num_workers: int = 0,
         test_on: str = "val",
     ) -> None:
-        """
-        Args:
-            splits_dir:     Root of the splits/ directory from split_dataset.py.
-            val_fold:       Which fold (0-4) to hold out as the Lightning val set.
-                            The remaining 4 folds are concatenated for training.
-            batch_size:     Batch size for all dataloaders.
-            thumbnail_size: (width, height) passed to OpenSlide.get_thumbnail().
-            num_workers:    DataLoader worker count.
-            test_on:        Which split to use for test_dataloader — "val" for
-                            internal testing, "test" for final evaluation.
-        """
         super().__init__()
         self.splits_dir = Path(splits_dir)
         self.val_fold = val_fold
         self.batch_size = batch_size
+        self.n_folds = n_folds
         self.thumbnail_size = thumbnail_size
         self.num_workers = num_workers
         self.test_on = test_on
@@ -52,7 +40,7 @@ class DataModule(LightningDataModule):
                     self.thumbnail_size,
                     train_tf,
                 )
-                for i in range(_N_FOLDS) if i != self.val_fold
+                for i in range(self.n_folds) if i != self.val_fold
             ])
             self._val_ds = ThumbnailDataset(
                 self.splits_dir / "train" / f"fold_{self.val_fold}" / "slides.csv",

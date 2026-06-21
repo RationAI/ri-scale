@@ -15,3 +15,4 @@ splits_dir: ???
 
 # which fold (0-4) to hold out as the Lightning val set during training
 fold: 0
+n_folds: 5
