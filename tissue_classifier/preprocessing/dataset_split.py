@@ -5,6 +5,16 @@ import pandas as pd
 from ratiopath.model_selection import train_test_split
 from sklearn.model_selection import StratifiedGroupKFold
 
+from pathlib import Path
+
+import hydra
+import mlflow
+import pandas as pd
+from mlflow.artifacts import download_artifacts
+from omegaconf import DictConfig
+from rationai.mlkit import autolog, with_cli_args
+from rationai.mlkit.lightning.loggers import MLFlowLogger
+
 
 def _stratify_labels(slides: pd.DataFrame) -> np.ndarray | None:
     y = slides["tissue_type"].values
@@ -102,3 +112,35 @@ def log_split_metrics(splits: dict[str, pd.DataFrame | list[pd.DataFrame]]) -> d
             metrics[f"{name}_n_ln"] = int((data["tissue_type"] == "LN").sum())
             metrics[f"{name}_n_colorectum"] = int((data["tissue_type"] == "colorectum").sum())
     return metrics
+
+
+
+@with_cli_args(["+preprocessing=dataset_split"])
+@hydra.main(
+    config_path="../configs",
+    config_name="preprocessing",
+    version_base=None,
+)
+@autolog
+def main(config: DictConfig, logger: MLFlowLogger) -> None:
+    slides_df = pd.read_csv(download_artifacts(config.slides_uri))
+    output_dir = Path(config.output_dir)
+
+    splits = create_splits(
+        slides_df=slides_df,
+        val_fraction=float(config.val_fraction),
+        test_fraction=float(config.test_fraction),
+        n_folds=int(config.n_folds),
+        seed=int(config.seed),
+    )
+
+    save_splits(splits, output_dir)
+
+    metrics = log_split_metrics(splits)
+    mlflow.log_metrics(metrics)
+
+    logger.log_artifacts(str(output_dir))
+
+
+if __name__ == "__main__":
+    main()  # pylint: disable=no-value-for-parameter

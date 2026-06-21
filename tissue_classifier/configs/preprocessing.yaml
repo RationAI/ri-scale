@@ -4,6 +4,6 @@ defaults:
   - _self_
 
 metadata:
-  experiment_name: Tissue Classifier Preprocessing
+  experiment_name: RI Scale
   run_name: ???
   description: ???

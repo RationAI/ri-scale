@@ -1,0 +1,12 @@
+# @package _global_
+
+max_workers: 4
+
+dataset: ???
+
+metadata:
+  run_name: Dataset of ${dataset.name}
+  description: Dataset of ${dataset.name}
+  hyperparams:
+    institute: ${dataset.institute}
+    name: ${dataset.name}

@@ -1,0 +1,9 @@
+# @package _global_
+
+dataset:
+  institute: mmci
+  name: MMCI
+  slides:
+    _target_: preprocessing.data_source.GlobDataSource
+    src_dir: /mnt/data/MOU/mixed/RI_Scale
+    glob_pattern: "*.mrxs"
