@@ -4,7 +4,6 @@ defaults:
   - model: default
   - training: default
   - trainer: default
-  - data/splits: mmci
   - _self_
 
 seed: 42

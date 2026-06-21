@@ -2,5 +2,6 @@ backbone:
   _target_: tissue_classifier.modeling.backbone.Backbone
   model_name: efficientnet_b0
   pretrained: true
-lr: ${training.lr}
-weight_decay: ${training.weight_decay}
+lr: ${lr}
+weight_decay: ${weight_decay}
+pos_weight: ${pos_weight}

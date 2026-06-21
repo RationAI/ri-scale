@@ -1,0 +1,30 @@
+# @package _global_
+
+data:
+  train:
+    _target_: tissue_classifier.data.dataset.ThumbnailDataset
+    thumbnail_size: ${thumbnail_size}
+    transform:
+      _target_: tissue_classifier.data.dataset.build_train_transform
+      thumbnail_size: ${thumbnail_size}
+    uris:
+      - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_0/slides.parquet
+      - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_1/slides.parquet
+      - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_2/slides.parquet
+      - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_3/slides.parquet
+  val:
+    _target_: tissue_classifier.data.dataset.ThumbnailDataset
+    thumbnail_size: ${thumbnail_size}
+    transform:
+      _target_: tissue_classifier.data.dataset.build_eval_transform
+      thumbnail_size: ${thumbnail_size}
+    uris:
+      - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_4/slides.parquet
+  test:
+    _target_: tissue_classifier.data.dataset.ThumbnailDataset
+    thumbnail_size: ${thumbnail_size}
+    transform:
+      _target_: tissue_classifier.data.dataset.build_eval_transform
+      thumbnail_size: ${thumbnail_size}
+    uris:
+      - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/val/slides.parquet

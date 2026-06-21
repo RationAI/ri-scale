@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - datasets: datasets/mmci 
+
+
+max_epochs: 100
+patience: 10
+batch_size: 64
+num_workers: 4
+lr: 1.0e-4
+weight_decay: 1.0e-5
+pos_weight: 0.5  # n_colorectum / n_ln ≈ 200/400
+
+
+metadata:
+  run_name: "fold_${fold}"
+  description: "Binary LN vs colorectum classification, held-out fold ${fold}"

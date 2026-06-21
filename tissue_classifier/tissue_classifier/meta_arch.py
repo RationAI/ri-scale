@@ -16,11 +16,12 @@ class MetaArch(LightningModule):
         backbone: Backbone,
         lr: float = 1e-4,
         weight_decay: float = 1e-5,
+        pos_weight: float = 1.0,
     ) -> None:
         super().__init__()
         self.backbone = backbone
         self.head = ClassifierHead(in_features=backbone.feature_dim)
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]))
         self.lr = lr
         self.weight_decay = weight_decay
 
