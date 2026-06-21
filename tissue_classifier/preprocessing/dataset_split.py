@@ -1,19 +1,16 @@
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
-from ratiopath.model_selection import train_test_split
-from sklearn.model_selection import StratifiedGroupKFold
-
+import tempfile
 from pathlib import Path
 
 import hydra
 import mlflow
+import numpy as np
 import pandas as pd
 from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
+from ratiopath.model_selection import train_test_split
+from sklearn.model_selection import StratifiedGroupKFold
 
 
 def _stratify_labels(slides: pd.DataFrame) -> np.ndarray | None:
@@ -64,8 +61,8 @@ def create_splits(
     train_pool = train_pool.reset_index(drop=True)
     val = val.reset_index(drop=True)
 
-    # Partition train_pool into n_folds non-overlapping folds
-    # Use the test indices from StratifiedGroupKFold so the folds are disjoint
+    # Partition train_pool into n_folds non-overlapping folds.
+    # Use the TEST indices from StratifiedGroupKFold so the folds are disjoint
     # and together cover all of train_pool exactly once.
     skf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     y = train_pool["tissue_type"].values
@@ -114,6 +111,7 @@ def log_split_metrics(splits: dict[str, pd.DataFrame | list[pd.DataFrame]]) -> d
     return metrics
 
 
+# ── entrypoint ─────────────────────────────────────────────────────────────────
 
 @with_cli_args(["+preprocessing=dataset_split"])
 @hydra.main(
@@ -124,7 +122,6 @@ def log_split_metrics(splits: dict[str, pd.DataFrame | list[pd.DataFrame]]) -> d
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     slides_df = pd.read_csv(download_artifacts(config.slides_uri))
-    output_dir = Path(config.output_dir)
 
     splits = create_splits(
         slides_df=slides_df,
@@ -134,12 +131,12 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         seed=int(config.seed),
     )
 
-    save_splits(splits, output_dir)
-
     metrics = log_split_metrics(splits)
     mlflow.log_metrics(metrics)
 
-    logger.log_artifacts(str(output_dir))
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        save_splits(splits, Path(tmp_dir))
+        logger.log_artifacts(tmp_dir)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,8 @@
+# @package _global_
+
+slides_uri: "mlflow-artifacts:/72/7ca802d3d19d49f4b4caa9742ea0877e/artifacts/slides.csv"
+
+seed: 42
+val_fraction: 0.15
+test_fraction: 0.15
+n_folds: 5
