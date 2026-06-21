@@ -9,4 +9,4 @@ callbacks:
   - _target_: lightning.pytorch.callbacks.EarlyStopping
     monitor: val/auroc
     mode: max
-    patience: ${trainer.patience}
+    patience: ${patience}
