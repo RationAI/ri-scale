@@ -4,10 +4,13 @@ defaults:
   - /data/datasets/mmci@data 
 
 
-max_epochs: 100
-patience: 10
+trainer:
+  max_epochs: 100
+  patience: 10
+
+
 batch_size: 64
-num_workers: 4
+num_workers: 8
 lr: 1.0e-4
 weight_decay: 1.0e-5
 pos_weight: 0.5  # n_colorectum / n_ln ≈ 200/400

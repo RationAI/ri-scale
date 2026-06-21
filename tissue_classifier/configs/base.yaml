@@ -12,8 +12,8 @@ checkpoint: null # path or mlflow-artifacts:// URI; used as ckpt_path when mode 
 thumbnail_size: [512, 512]
 
 data:
-  batch_size: ${training.batch_size}
-  num_workers: ${training.num_workers}
+  batch_size: ${batch_size}
+  num_workers: ${num_workers}
   # train / val / test dataset configs are merged from data/splits: mmci
 
 metadata:
