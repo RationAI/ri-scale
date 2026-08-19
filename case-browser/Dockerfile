@@ -21,7 +21,10 @@ ARG NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL="https://cbioportal.wsi-archive.bbmri-eric.
 ARG NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT="https://login.aai.lifescience-ri.eu/oidc/authorize"
 ARG NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT="https://login.aai.lifescience-ri.eu/oidc/token"
 ARG NEXT_PUBLIC_WSI_AAI_CLIENT_ID="26f5be84-af80-4480-b764-f78d4ea6a519"
-ARG NEXT_PUBLIC_WSI_AAI_REDIRECT_URI="http://localhost:3000/auth/callback"
+# Leave empty: the app derives its redirect URI from the origin it is served
+# from (see resolveRedirectUri in lib/config.ts), so one image works on any
+# domain. Only set this to pin the value to something else.
+ARG NEXT_PUBLIC_WSI_AAI_REDIRECT_URI=""
 # Dev-only escape hatch. Leave empty for real deployments - it would end up in
 # the client bundle in plaintext.
 ARG NEXT_PUBLIC_WSI_DEV_TOKEN=""

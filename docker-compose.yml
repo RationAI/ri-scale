@@ -11,7 +11,7 @@ services:
         NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT: ${NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT:-https://login.aai.lifescience-ri.eu/oidc/authorize}
         NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT: ${NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT:-https://login.aai.lifescience-ri.eu/oidc/token}
         NEXT_PUBLIC_WSI_AAI_CLIENT_ID: ${NEXT_PUBLIC_WSI_AAI_CLIENT_ID:-26f5be84-af80-4480-b764-f78d4ea6a519}
-        NEXT_PUBLIC_WSI_AAI_REDIRECT_URI: ${NEXT_PUBLIC_WSI_AAI_REDIRECT_URI:-http://localhost:3000/auth/callback}
+        NEXT_PUBLIC_WSI_AAI_REDIRECT_URI: ${NEXT_PUBLIC_WSI_AAI_REDIRECT_URI:-}
         NEXT_PUBLIC_WSI_DEV_TOKEN: ${NEXT_PUBLIC_WSI_DEV_TOKEN:-}
     image: ri-scale/case-browser
     # Plain HTTP on 3000, no proxy here - routing, TLS and the path prefix are

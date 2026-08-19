@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { config } from "@/lib/config";
+import { config, resolveRedirectUri } from "@/lib/config";
 import { generateCodeChallenge, generateCodeVerifier, generateState } from "./pkce";
 
 const STORAGE_KEY = "wsi_auth_tokens";
@@ -37,7 +37,10 @@ export function isLoggedIn(): boolean {
 }
 
 function requireAaiConfig() {
-  const { authEndpoint, tokenEndpoint, clientId, redirectUri } = config.aai;
+  const { authEndpoint, tokenEndpoint, clientId } = config.aai;
+  // Derived from window.location, so this is browser-only - which both
+  // callers below are.
+  const redirectUri = resolveRedirectUri();
   if (!authEndpoint || !tokenEndpoint || !clientId || !redirectUri) {
     throw new Error("NEXT_PUBLIC_WSI_AAI_* environment variables must be set");
   }
