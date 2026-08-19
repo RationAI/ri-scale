@@ -18,7 +18,11 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     model = instantiate(config.model, _target_=MetaArch)
 
     trainer = instantiate(config.trainer, _target_=Trainer, logger=logger)
-    getattr(trainer, config.mode)(model, datamodule=data, ckpt_path=config.checkpoint)
+    if config.mode == "fit":
+        trainer.fit(model, datamodule=data)
+        trainer.test(model, datamodule=data, ckpt_path="best")
+    else:
+        getattr(trainer, config.mode)(model, datamodule=data, ckpt_path=config.checkpoint)
 
 
 if __name__ == "__main__":

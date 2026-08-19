@@ -13,31 +13,7 @@ from openslide import OpenSlide
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 
-_IMAGENET_MEAN = [0.485, 0.456, 0.406]
-_IMAGENET_STD = [0.229, 0.224, 0.225]
-
 LABEL_MAP = {"LN": 1, "colorectum": 0}
-
-
-def build_train_transform(thumbnail_size: tuple[int, int]) -> v2.Compose:
-    return v2.Compose([
-        v2.Resize(thumbnail_size),
-        v2.RandomHorizontalFlip(),
-        v2.RandomVerticalFlip(),
-        v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1, hue=0.05),
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True),
-        v2.Normalize(mean=_IMAGENET_MEAN, std=_IMAGENET_STD),
-    ])
-
-
-def build_eval_transform(thumbnail_size: tuple[int, int]) -> v2.Compose:
-    return v2.Compose([
-        v2.Resize(thumbnail_size),
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True),
-        v2.Normalize(mean=_IMAGENET_MEAN, std=_IMAGENET_STD),
-    ])
 
 
 class _SlideThumbnail(Dataset[tuple[torch.Tensor, int]]):

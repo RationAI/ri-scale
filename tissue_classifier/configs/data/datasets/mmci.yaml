@@ -4,26 +4,49 @@ train:
   _target_: tissue_classifier.data.dataset.ThumbnailDataset
   thumbnail_size: ${thumbnail_size}
   transform:
-    _target_: tissue_classifier.data.dataset.build_train_transform
-    thumbnail_size: ${thumbnail_size}
+    _target_: torchvision.transforms.v2.Compose
+    transforms:
+      - _target_: torchvision.transforms.v2.Resize
+        size: ${thumbnail_size}
+      - _target_: torchvision.transforms.v2.RandomHorizontalFlip
+      - _target_: torchvision.transforms.v2.RandomVerticalFlip
+      - _target_: torchvision.transforms.v2.ColorJitter
+        brightness: 0.2
+        contrast: 0.2
+        saturation: 0.1
+        hue: 0.05
+      - _target_: torchvision.transforms.v2.ToImage
+      - _target_: torchvision.transforms.v2.ToDtype
+        dtype: &float32
+          _target_: hydra.utils.get_object
+          path: torch.float32
+        scale: true
+      - _target_: torchvision.transforms.v2.Normalize
+        mean: &imagenet_mean [0.485, 0.456, 0.406]
+        std: &imagenet_std [0.229, 0.224, 0.225]
   uris:
     - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_0/slides.parquet
     - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_1/slides.parquet
     - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_2/slides.parquet
     - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_3/slides.parquet
-val:
+val: &eval_dataset
   _target_: tissue_classifier.data.dataset.ThumbnailDataset
   thumbnail_size: ${thumbnail_size}
   transform:
-    _target_: tissue_classifier.data.dataset.build_eval_transform
-    thumbnail_size: ${thumbnail_size}
+    _target_: torchvision.transforms.v2.Compose
+    transforms:
+      - _target_: torchvision.transforms.v2.Resize
+        size: ${thumbnail_size}
+      - _target_: torchvision.transforms.v2.ToImage
+      - _target_: torchvision.transforms.v2.ToDtype
+        dtype: *float32
+        scale: true
+      - _target_: torchvision.transforms.v2.Normalize
+        mean: *imagenet_mean
+        std: *imagenet_std
   uris:
     - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/train/fold_4/slides.parquet
 test:
-  _target_: tissue_classifier.data.dataset.ThumbnailDataset
-  thumbnail_size: ${thumbnail_size}
-  transform:
-    _target_: tissue_classifier.data.dataset.build_eval_transform
-    thumbnail_size: ${thumbnail_size}
+  <<: *eval_dataset
   uris:
     - mlflow-artifacts:/72/ef5902d2afc24d40abb5573c82eb793a/artifacts/val/slides.parquet
