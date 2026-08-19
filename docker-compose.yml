@@ -1,0 +1,24 @@
+services:
+  case-browser:
+    build:
+      context: ./case-browser
+      # These are baked into the client bundle at build time, so changing any
+      # of them needs `docker compose build`, not just `up`. Override by
+      # putting the variable in a .env file next to this compose file.
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
+        NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL: ${NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL:-https://cbioportal.wsi-archive.bbmri-eric.eu/wsi-service/v3}
+        NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT: ${NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT:-https://login.aai.lifescience-ri.eu/oidc/authorize}
+        NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT: ${NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT:-https://login.aai.lifescience-ri.eu/oidc/token}
+        NEXT_PUBLIC_WSI_AAI_CLIENT_ID: ${NEXT_PUBLIC_WSI_AAI_CLIENT_ID:-26f5be84-af80-4480-b764-f78d4ea6a519}
+        NEXT_PUBLIC_WSI_AAI_REDIRECT_URI: ${NEXT_PUBLIC_WSI_AAI_REDIRECT_URI:-}
+        NEXT_PUBLIC_WSI_DEV_TOKEN: ${NEXT_PUBLIC_WSI_DEV_TOKEN:-}
+    image: ri-scale/case-browser
+    # Plain HTTP on 3000, no proxy here - routing, TLS and the path prefix are
+    # the external reverse proxy's job. When it sits in front, that proxy must
+    # forward the NEXT_PUBLIC_BASE_PATH prefix through unchanged: with basePath
+    # set, Next expects to receive /ri-scale/browse and does not strip the
+    # prefix itself.
+    ports:
+      - "${CASE_BROWSER_PORT:-3000}:3000"
+    restart: unless-stopped
