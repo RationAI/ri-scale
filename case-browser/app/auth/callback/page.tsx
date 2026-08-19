@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { handleCallback } from "@/lib/auth/client";
 
@@ -25,9 +26,11 @@ function CallbackInner() {
       {error ? (
         <>
           <p className="text-sm text-red-600">{error}</p>
-          <a href="/login" className="text-sm underline">
+          {/* Link, not a plain <a>: only next/link gets basePath applied, so
+              a raw href would escape the /ri-scale prefix and 404. */}
+          <Link href="/login" className="text-sm underline">
             Back to login
-          </a>
+          </Link>
         </>
       ) : (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">

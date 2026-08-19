@@ -25,8 +25,13 @@ ARG NEXT_PUBLIC_WSI_AAI_REDIRECT_URI="http://localhost:3000/auth/callback"
 # Dev-only escape hatch. Leave empty for real deployments - it would end up in
 # the client bundle in plaintext.
 ARG NEXT_PUBLIC_WSI_DEV_TOKEN=""
+# Path prefix to host the app under, e.g. "/ri-scale". Empty = domain root.
+# See normaliseBasePath() in next.config.ts. Must match both the reverse proxy
+# location and the path in NEXT_PUBLIC_WSI_AAI_REDIRECT_URI.
+ARG NEXT_PUBLIC_BASE_PATH=""
 
-ENV NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL=$NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL \
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH \
+    NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL=$NEXT_PUBLIC_WSI_ARCHIVE_BASE_URL \
     NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT=$NEXT_PUBLIC_WSI_AAI_AUTH_ENDPOINT \
     NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT=$NEXT_PUBLIC_WSI_AAI_TOKEN_ENDPOINT \
     NEXT_PUBLIC_WSI_AAI_CLIENT_ID=$NEXT_PUBLIC_WSI_AAI_CLIENT_ID \
