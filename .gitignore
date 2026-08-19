@@ -11,7 +11,6 @@ build/
 
 # uv
 .python-version
-uv.lock
 
 # Jupyter
 .ipynb_checkpoints/
