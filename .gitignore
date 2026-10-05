@@ -28,6 +28,11 @@ mlruns/
 mlartifacts/
 *.csv
 !configs/**/*.csv
+# clinical exports and anything derived from them
+*.xlsx
+*.xls
+*.parquet
+*.joblib
 
 # Logs & checkpoints
 logs/
