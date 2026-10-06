@@ -57,6 +57,22 @@ def evaluate(
     return {k: float(v) for k, v in metrics.items()}
 
 
+def bootstrap_c_index(
+    risk: np.ndarray, y: np.ndarray, n_resamples: int = 2000, seed: int = 0
+) -> dict[str, float]:
+    """95 % percentile bootstrap interval of Harrell's C-index, resampling patients."""
+    rng = np.random.default_rng(seed)
+    values = []
+    for _ in range(n_resamples):
+        idx = rng.integers(0, len(y), len(y))
+        try:
+            values.append(concordance_index_censored(y["event"][idx], y["time"][idx], risk[idx])[0])
+        except ValueError:  # no comparable pairs in the resample
+            continue
+    lower, upper = np.percentile(values, [2.5, 97.5])
+    return {"c_index_ci_lower": float(lower), "c_index_ci_upper": float(upper)}
+
+
 def predict_frame(model: Pipeline, data: Fold, horizons: Sequence[float]) -> pd.DataFrame:
     survival = survival_at(model, data.X, horizons)
     return pd.DataFrame({

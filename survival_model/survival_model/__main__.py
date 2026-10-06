@@ -16,6 +16,7 @@ from sklearn.pipeline import Pipeline
 from survival_model import significance
 from survival_model.data import Fold, load_splits
 from survival_model.evaluation import (
+    bootstrap_c_index,
     coefficients,
     cross_validate,
     evaluate,
@@ -75,6 +76,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         if config.evaluate_test:
             test = Fold.from_patients(test_df, config.endpoint)
             test_metrics = evaluate(final, test.X, test.y, train.y, horizons)
+            test_metrics |= bootstrap_c_index(final.predict(test.X), test.y, seed=config.seed)
             mlflow.log_metrics({f"test/{k}": v for k, v in test_metrics.items()})
             predict_frame(final, test, horizons).to_csv(tmp / "test_predictions.csv", index=False)
 
