@@ -50,6 +50,7 @@ from scipy import ndimage
 
 _GRAY = np.array([0.299, 0.587, 0.114], dtype=np.float32)
 _MARGIN = 4  # px read around each tile so that seams on tile borders are seen
+_SUMMARY_COLUMNS = ["slide", "mpp", "n_tissue_tiles", "n_seam_tiles", "seam_tile_fraction", "total_seam_mm", "error"]
 
 
 # ── seam detection ─────────────────────────────────────────────────────────────
@@ -314,7 +315,7 @@ def main() -> None:
 
     ray.init(address=args.ray_address)
     try:
-        summary = pd.DataFrame(run(args)).sort_values("slide")
+        summary = pd.DataFrame(run(args), columns=_SUMMARY_COLUMNS).sort_values("slide")
     finally:
         ray.shutdown()
     summary.to_csv(args.out_dir / "summary.csv", index=False)

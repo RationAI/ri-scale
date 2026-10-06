@@ -1,0 +1,17 @@
+# @package _global_
+
+dataset: ???
+
+metadata:
+  run_name: Clinical dataset of ${dataset.name}
+  description: Patient-level survival table mined from the ${dataset.name} clinical sheets
+  hyperparams:
+    institute: ${dataset.institute}
+    name: ${dataset.name}
+    patient_key: ${dataset.patient_key}
+    patient_key_nullable: ${dataset.patient_key_nullable}
+    include_topography: ${dataset.include_topography}
+    exclude_topography: ${dataset.exclude_topography}
+    cancer_death_codes: ${dataset.cancer_death_codes}
+    cancer_death_lines: ${dataset.cancer_death_lines}
+    administrative_censor_date: ${dataset.administrative_censor_date}

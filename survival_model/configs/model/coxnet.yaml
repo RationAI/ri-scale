@@ -1,0 +1,5 @@
+# Elastic-net Cox; features whose coefficients are shrunk to exactly zero are candidates for omission.
+_target_: sksurv.linear_model.CoxnetSurvivalAnalysis
+l1_ratio: 0.9
+alphas: [0.02]
+fit_baseline_model: true

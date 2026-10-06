@@ -1,0 +1,9 @@
+# Clinical reference: how much does anything beyond the stage group add?
+numeric: []
+categorical: [stage_group]
+
+reference:
+  stage_group: 0-I
+
+min_category_count: 10
+scale_numeric: true

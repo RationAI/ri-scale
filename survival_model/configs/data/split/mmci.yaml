@@ -1,0 +1,8 @@
+# @package _global_
+
+patients_uri: ???   # patients.parquet logged by preprocessing.clinical_dataset
+
+seed: 42
+test_fraction: 0.2
+n_folds: 5
+stratify_by: [os_event, stage_group]

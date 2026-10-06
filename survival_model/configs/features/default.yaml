@@ -1,0 +1,38 @@
+# Raw features produced by survival_model.features.derive_features.
+# Deliberately left out because they are derivable from the ones below:
+#   stage_group (= pT/pN/M), nodes_positive / ln_ratio (~ pN).
+# Never add outcome-derived columns (death causes, comorbidity from the death certificate).
+numeric: [age, nodes_examined]
+categorical:
+  - sex
+  - location
+  - morphology_group
+  - grade_group
+  - pt_group
+  - pn_group
+  - m_group
+  - neoadjuvant
+  - mmr
+  - kras
+  - nras
+  - braf
+
+# Reference level of each categorical feature (hazard ratios are relative to it);
+# the most frequent level is used when the configured one is absent.
+reference:
+  sex: M
+  location: left
+  morphology_group: adenocarcinoma
+  grade_group: low
+  pt_group: T0-2
+  pn_group: N0
+  m_group: M0
+  neoadjuvant: "no"
+  mmr: pMMR
+  kras: wt
+  nras: wt
+  braf: wt
+  stage_group: 0-I
+
+min_category_count: 10 # rarer levels are merged into "other"
+scale_numeric: true    # standardise numeric features (needed by the penalised Cox models)

@@ -1,0 +1,70 @@
+# @package _global_
+
+dataset:
+  institute: mmci
+  name: MMCI
+  source:
+    _target_: preprocessing.data_source.ExcelDataSource
+    src_dir: ???                        # folder with the exported clinical sheets
+    glob_pattern: ["*.xlsx", "*.xls"]
+    sheets: null                        # null = every sheet; sheets without a recognisable header are skipped
+
+  # canonical column -> regexes searched in the normalised header
+  # (lower-case, no diacritics, non-alphanumerics replaced by "_").
+  # Excel clips long headers to the column width, so the patterns of truncated columns are the
+  # fragments visible in the sheet, which are always part of the full name.
+  # Each header is assigned to at most one canonical column. Columns with identical patterns take
+  # the matching headers in sheet order; more matching headers than columns is an error.
+  columns:
+    biopsy_id: ["^id_biopsie$"]
+    sample_id: ["^id_vzorku$"]
+    topography: ["^topografie$"]
+    morphology: ["^morfologie$"]
+    grade: ["^grading$"]
+    diagnosis: ["^diagnoza$"]
+    y_prefix: ["^y_prefix$"]
+    r_prefix: ["^r_prefix$"]
+    pt: ["^pt$"]
+    pn: ["^pn$"]
+    pm: ["^pm$"]
+    cm: ["^cm$"]
+    sn_positive: ["sn_uzliny_poz"]   # sentinel nodes, 0 / 0 when no sentinel biopsy was done
+    sn_examined: ["sn_uzliny_vys"]
+    ln_positive: ["ost_uzliny_poz"]  # other regional nodes
+    ln_examined: ["ost_uzliny_vys"]
+    procedure_date: ["l_datum_z"]
+    sex: ["^pohlavi$"]
+    birth_date: ["tum_naroz"]
+    death_date: ["atum_umrt"]
+    death_cause_underlying: ["^dgh_"]
+    death_cause_immediate: ["^dgia_"]
+    death_cause_other: ["^dgic_"]
+    comorbidity: ["^dgii_"]
+    last_visit_date: ["navsteva_n"]
+    diagnosis_date: ["tum_diagn"]
+    clinical_stage: ["nicke_stadi"]
+    mmr: ["^mmr$"]
+    kras: ["^kras$"]
+    nras: ["^nras$"]
+    braf: ["^braf$"]
+  required: [biopsy_id, sex, birth_date, diagnosis_date, death_date, last_visit_date]
+
+  # Rows with the same key are one patient. There is no patient id in the export, so birth
+  # date + sex is used, and the death date (empty = alive) tells apart most people who share them.
+  # Rows without a value in a non-nullable key column are kept as a patient per case.
+  patient_key: [birth_date, sex, death_date]
+  patient_key_nullable: [death_date]
+
+  include_topography: [C18, C19, C20]   # ICD prefixes (topography or diagnosis); unknown codes are kept
+  exclude_topography: [C18.1]           # appendix
+  # Underlying causes of death counted as colorectal cancer deaths (cancer-specific survival).
+  # C78-C80 (secondary / unspecified malignancy) are usually miscoded CRC deaths in this cohort.
+  cancer_death_codes: [C18, C19, C20, C78, C79, C80]
+  # Death certificate lines checked for those codes. The underlying cause alone is the WHO
+  # definition, but some records code e.g. D03.5 or C82.9 as underlying with CRC in lines Ia / Ic;
+  # the n_crc_in_chain_not_counted metric shows how many. Add death_cause_other /
+  # death_cause_immediate to count those as CRC deaths too.
+  cancer_death_lines: [death_cause_underlying]
+  # Censor living patients at this date instead of their last visit. Only valid if the death
+  # register linkage is complete up to that date; null = censor at the last visit.
+  administrative_censor_date: null

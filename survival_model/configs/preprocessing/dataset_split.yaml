@@ -1,0 +1,10 @@
+# @package _global_
+
+metadata:
+  run_name: Dataset Split
+  description: Split patients into train folds / test, stratified by ${stratify_by}
+  hyperparams:
+    seed: ${seed}
+    test_fraction: ${test_fraction}
+    n_folds: ${n_folds}
+    stratify_by: ${stratify_by}

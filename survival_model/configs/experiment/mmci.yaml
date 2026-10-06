@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - /data/datasets/mmci@data
+
+metadata:
+  run_name: ${hydra:runtime.choices.model}_${hydra:runtime.choices.features}_${endpoint}
+  description: Tabular survival baseline (${endpoint}) on MMCI clinical data

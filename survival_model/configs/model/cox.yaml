@@ -1,0 +1,3 @@
+_target_: sksurv.linear_model.CoxPHSurvivalAnalysis
+alpha: 0.1   # small ridge penalty, keeps the fit stable with sparse dummy levels
+ties: efron

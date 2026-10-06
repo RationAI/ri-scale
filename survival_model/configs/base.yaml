@@ -1,0 +1,30 @@
+defaults:
+  - hydra: default
+  - logger: mlflow
+  - features: default
+  - model: cox
+  - _self_
+
+seed: 42
+endpoint: os         # os = overall survival | css = colorectal-cancer-specific survival
+horizons: [1, 3, 5]  # years; time-dependent AUC / Brier score and predicted survival probabilities
+evaluate_test: false # touch the held-out test set only once the model and feature set are fixed
+
+analysis:
+  significance: true # Cox statistics on the training pool: univariable, multivariable, drop-one LRT, PH test
+  drop_group: true   # cross-validated drop-one-feature delta C-index for the configured model
+  penalizer: 0.0     # lifelines penalizer for the statistical Cox models (falls back to 0.01 if it does not converge)
+
+data:
+  splits_uri: ???
+
+metadata:
+  experiment_name: RI Scale
+  run_name: ???
+  description: Tabular survival baseline
+  hyperparams:
+    seed: ${seed}
+    endpoint: ${endpoint}
+    horizons: ${horizons}
+    model: ${hydra:runtime.choices.model}
+    features: ${hydra:runtime.choices.features}
