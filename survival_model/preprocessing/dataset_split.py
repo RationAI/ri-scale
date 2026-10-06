@@ -16,12 +16,19 @@ log = logging.getLogger(__name__)
 
 
 def _strata(patients: pd.DataFrame, columns: list[str], n_folds: int) -> np.ndarray:
-    """Joint strata of ``columns``; members of too small strata are stratified by the first column only."""
+    """Joint strata of ``columns``; members of too small strata are stratified by the first column only.
+
+    They join the largest stratum with the same first-column value, as a stratum
+    of their own could again be too small (e.g. a single event among them).
+    """
     strata = patients[columns].astype(str).agg("|".join, axis=1)
+    first = patients[columns[0]].astype(str)
     small = strata.map(strata.value_counts()) < 2 * n_folds
     if small.any():
         log.info("%d patients in small %s strata, stratified by %s only", small.sum(), columns, columns[0])
-    return strata.where(~small, patients[columns[0]].astype(str)).to_numpy()
+        largest = strata[~small].groupby(first[~small]).agg(lambda s: s.value_counts().idxmax())
+        strata = strata.where(~small, first.map(largest).fillna(first))
+    return strata.to_numpy()
 
 
 def create_splits(
