@@ -57,9 +57,13 @@ PARSERS: dict[str, Callable[[Any], Any]] = {
 }
 
 
-def _parse_column(values: pd.Series, parser: Callable[[Any], Any]) -> tuple[list, Counter]:
+def _parse_column(
+    values: pd.Series, parser: Callable[[Any], Any]
+) -> tuple[list, Counter, Counter]:
+    """Parsed values, counts of unparsed raw values and counts of (raw value, parsed value) pairs."""
     parsed: list = []
     unparsed: Counter = Counter()
+    pairs: Counter = Counter()
     for value in values:
         if vp.is_missing(value):
             parsed.append(None)
@@ -69,7 +73,8 @@ def _parse_column(values: pd.Series, parser: Callable[[Any], Any]) -> tuple[list
         except ValueError:
             parsed.append(None)
             unparsed[vp.as_text(value)] += 1
-    return parsed, unparsed
+        pairs[vp.as_text(value), parsed[-1]] += 1
+    return parsed, unparsed, pairs
 
 
 def parse_records(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, dict]]:
@@ -81,13 +86,19 @@ def parse_records(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, dict]]:
             records[column] = None
             report[column] = {"present": False}
             continue
-        parsed, unparsed = _parse_column(raw[column], parser)
+        parsed, unparsed, pairs = _parse_column(raw[column], parser)
         records[column] = parsed
+        private = column in _PRIVATE_COLUMNS
         report[column] = {
             "present": True,
             "n_filled": int((~raw[column].map(vp.is_missing)).sum()),
             "n_unparsed": sum(unparsed.values()),
-            "unparsed_values": {} if column in _PRIVATE_COLUMNS else dict(unparsed.most_common(50)),
+            "unparsed_values": {} if private else dict(unparsed.most_common(50)),
+            # What each raw value became, so values parsed into the wrong category show up too
+            "values": [] if private else [
+                {"raw": raw_value, "parsed": value, "n": n}
+                for (raw_value, value), n in pairs.most_common(50)
+            ],
         }
 
     for column in DATE_COLUMNS:

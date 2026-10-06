@@ -32,9 +32,9 @@ real header and a known ground truth: sex, KRAS and NRAS have no effect.
 * Headers are matched by the regexes in `configs/data/raw/mmci.yaml` (accents and case ignored),
   so new or renamed columns only need a config change. The header row is found automatically,
   and sheets without one (legends) are skipped.
-* Cell parsers live in `preprocessing/value_parsers.py`. Values they do not understand are counted
-  in `parse_report.json` (raw values only for categorical columns, never for dates or IDs).
-  Check that report first on new data.
+* Cell parsers live in `preprocessing/value_parsers.py`. `parse_report.json` counts the values they
+  do not understand and lists what each raw value was parsed to (raw values only for categorical
+  columns, never for dates or IDs). Check that report first on new data.
 * The export has no patient ID, so rows are grouped by birth date + sex + death date. Within
   a patient, tumour fields come from the most complete primary-tumour record. The metrics
   `n_split_by_nullable_key` and `n_conflicting_last_visit` show how often the key is ambiguous.
