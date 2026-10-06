@@ -17,7 +17,7 @@ submit_job(
     gpu=None,
     public=False,
     script=[
-        "git clone --single-branch --branch feat/survival-model https://github.com/RationAI/ri-scale.git workdir",
+        "git clone --single-branch --branch feature/survival-prediction https://github.com/RationAI/ri-scale.git workdir",
         "cd workdir/survival_model",
         "uv sync --frozen",
         "export MLFLOW_TRACKING_URI=http://mlflow-s3.rationai-mlflow",
