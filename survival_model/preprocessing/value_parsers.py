@@ -249,9 +249,12 @@ _MUTATION_RULES: list[tuple[str | None, tuple[str, ...]]] = [
 
 # Loss of expression is checked before "preserved" so that mixed reports
 # ("zachovalá exprese MSH2/MSH6, ztráta MLH1/PMS2") count as deficient.
+# "bez IHC detekovatelné alterace" (no detectable alteration) is checked first,
+# so a negated defect keyword never counts as deficient.
 _MMR_RULES: list[tuple[str | None, tuple[str, ...]]] = [
     (None, _NOT_TESTED),
-    ("dMMR", ("dmmr", "msi-h", "msi h", "msih", "msi-high", "deficien", "ztrat", "loss", "chyb")),
+    ("pMMR", ("bez ihc detek", "bez detek")),
+    ("dMMR", ("dmmr", "msi-h", "msi h", "msih", "msi-high", "deficien", "defekt", "ztrat", "loss", "chyb")),
     ("pMMR", ("pmmr", "mss", "msi-l", "msil", "stabil", "proficien", "zachov", "intakt", "preserv", "normal")),
     ("dMMR", ("msi",)),
 ]
