@@ -28,6 +28,11 @@ class Fold:
         )
 
 
+def load_patients(patients_uri: str) -> pd.DataFrame:
+    """patients.parquet written by preprocessing.clinical_dataset / mug_dataset."""
+    return pd.read_parquet(download_artifacts(artifact_uri=patients_uri))
+
+
 def load_splits(splits_uri: str) -> tuple[list[pd.DataFrame], pd.DataFrame]:
     """CV folds and the held-out test set written by preprocessing.dataset_split."""
     root = Path(download_artifacts(artifact_uri=splits_uri))

@@ -80,6 +80,8 @@ def derive_features(patients: pd.DataFrame) -> pd.DataFrame:
 
 def make_target(patients: pd.DataFrame, endpoint: str) -> np.ndarray:
     """Structured (event, time) array; time in years since diagnosis."""
+    if patients[f"{endpoint}_event"].isna().all():
+        raise ValueError(f"Endpoint {endpoint!r} is not recorded in this dataset")
     return Surv.from_arrays(
         event=patients[f"{endpoint}_event"].astype(bool).to_numpy(),
         time=patients["time_days"].to_numpy(dtype=float) / 365.25,

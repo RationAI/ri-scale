@@ -23,8 +23,34 @@ uv run -m survival_model +experiment=mmci features=stage_only   # clinical refer
 uv run -m survival_model +experiment=mmci endpoint=css          # colorectal-cancer-specific survival
 ```
 
-`scripts/*.py` submit the same steps as kube jobs. To try everything without patient data, run
-`uv run scripts/synthetic_excel.py /tmp/export/mmci.xlsx`. It writes a synthetic export with the
+## MUG cohort and external validation
+
+The MUG export (`mug_lymph_nodes_filtered_rev1_patients.csv`) already has one row per patient and
+overall survival, so `preprocessing.mug_dataset` only maps it to the same `patients.parquet` layout.
+Option A is to develop the model on MUG, which is the larger cohort, and validate it on MMCI. That
+model uses the `shared` feature set: age, sex, pT, pN, M and grade, which both institutes record.
+
+```bash
+uv run -m preprocessing.mug_dataset +data=raw/mug dataset.path=/path/to/mug_lymph_nodes_filtered_rev1_patients.csv
+uv run -m preprocessing.dataset_split +data=split/mug patients_uri=mlflow-artifacts:/<exp>/<run>/artifacts/patients.parquet
+uv run -m survival_model +experiment=mug data.splits_uri=<MUG split run> \
+    data.external_uri=mlflow-artifacts:/<exp>/<MMCI run>/artifacts/patients.parquet
+```
+
+* M is unknown for most MUG patients, but the stage group fixes it: IV means M1 and 0-III mean M0
+  (`n_m_from_stage`). A recorded M is kept even when it contradicts the stage (`n_m_contradicts_stage`).
+* Age is recorded at the examination and is moved back to the first diagnosis, where survival starts.
+  Patients examined more than `max_examination_delay_days` after the diagnosis are left out, as they
+  had to survive until the examination.
+* Patients with `clinical_context_review_flag` (recurrence, prior treatment, multiple tumours, ...)
+  are left out (`exclude_flags`). R, L and V are kept in `patients.parquet` but MMCI does not have them.
+* `data.external_uri` evaluates the final model on another institute's patients
+  (`external/*` metrics, `external_predictions.csv`). As with the test set, use it only once the model
+  and feature set are fixed. Only overall survival is available for MUG.
+
+`scripts/*.py` submit the same steps as kube jobs. The split and training scripts use MMCI unless
+`+data=split/mug` or `+experiment=mug` is given. To try everything without patient data, run
+`uv run scripts/synthetic_excel.py /tmp/export/mmci.xlsx`. It writes a synthetic MMCI export with the
 real header and a known ground truth: sex, KRAS and NRAS have no effect.
 
 ## Preprocessing

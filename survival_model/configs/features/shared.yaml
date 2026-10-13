@@ -1,0 +1,14 @@
+# Features recorded by both MMCI and MUG, for models validated across the institutes.
+# MUG has no site, morphology, node counts, neoadjuvant therapy or molecular markers.
+numeric: [age]
+categorical: [sex, pt_group, pn_group, m_group, grade_group]
+
+reference:
+  sex: M
+  pt_group: T0-2
+  pn_group: N0
+  m_group: M0
+  grade_group: low
+
+min_category_count: 10
+scale_numeric: true

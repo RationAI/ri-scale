@@ -1,0 +1,4 @@
+splits_uri: ???      # artifact root of the preprocessing.dataset_split run (contains train/fold_*/ and test/)
+# patients.parquet of another institute (e.g. MMCI) the final model is validated on; null = none.
+# Like the test set, evaluate on it only once the model and feature set are fixed.
+external_uri: null

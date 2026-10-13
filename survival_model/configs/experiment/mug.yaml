@@ -1,0 +1,11 @@
+# @package _global_
+
+# Only overall survival is available (no causes of death), and only the features both institutes
+# record, so the model can be validated on MMCI (data.external_uri).
+defaults:
+  - /data/datasets/mug@data
+  - override /features: shared
+
+metadata:
+  run_name: mug_${hydra:runtime.choices.model}_${hydra:runtime.choices.features}_${endpoint}
+  description: Tabular survival baseline (${endpoint}) on MUG clinical data

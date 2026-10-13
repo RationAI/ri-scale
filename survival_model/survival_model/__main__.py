@@ -14,7 +14,7 @@ from sklearn.base import clone
 from sklearn.pipeline import Pipeline
 
 from survival_model import significance
-from survival_model.data import Fold, load_splits
+from survival_model.data import Fold, load_patients, load_splits
 from survival_model.evaluation import (
     bootstrap_c_index,
     coefficients,
@@ -79,6 +79,14 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             test_metrics |= bootstrap_c_index(final.predict(test.X), test.y, seed=config.seed)
             mlflow.log_metrics({f"test/{k}": v for k, v in test_metrics.items()})
             predict_frame(final, test, horizons).to_csv(tmp / "test_predictions.csv", index=False)
+
+        if external_uri := config.data.get("external_uri"):
+            # Another institute's patients, not used for training or tuning
+            external = Fold.from_patients(load_patients(external_uri), config.endpoint)
+            external_metrics = evaluate(final, external.X, external.y, train.y, horizons)
+            external_metrics |= bootstrap_c_index(final.predict(external.X), external.y, seed=config.seed)
+            mlflow.log_metrics({f"external/{k}": v for k, v in external_metrics.items()})
+            predict_frame(final, external, horizons).to_csv(tmp / "external_predictions.csv", index=False)
 
         # Fitted on the whole training pool; joblib.load(...).predict_survival_function(derive_features(df))
         joblib.dump(final, tmp / "model.joblib")

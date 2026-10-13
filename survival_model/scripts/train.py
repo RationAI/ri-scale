@@ -1,4 +1,4 @@
-"""Usage: uv run scripts/train.py data.splits_uri=mlflow-artifacts:/<exp>/<run>/artifacts [model=rsf ...]"""
+"""Usage: uv run scripts/train.py data.splits_uri=mlflow-artifacts:/<exp>/<run>/artifacts [+experiment=mug] [model=rsf ...]"""
 
 import shlex
 import sys
@@ -6,7 +6,10 @@ import sys
 from kube_jobs import storage, submit_job
 
 # Hydra overrides from the command line, so run URIs need no commit
-overrides = " ".join(shlex.quote(arg) for arg in sys.argv[1:])
+args = sys.argv[1:]
+if not any(arg.startswith("+experiment=") for arg in args):
+    args = ["+experiment=mmci", *args]  # MMCI unless another dataset is given
+overrides = " ".join(shlex.quote(arg) for arg in args)
 
 
 submit_job(
@@ -21,7 +24,7 @@ submit_job(
         "cd workdir/survival_model",
         "uv sync --frozen",
         "export MLFLOW_TRACKING_URI=http://mlflow-s3.rationai-mlflow",
-        f"uv run -m survival_model +experiment=mmci {overrides}",
+        f"uv run -m survival_model {overrides}",
     ],
     storage=[storage.secure.DATA, storage.secure.PROJECTS],
 )
