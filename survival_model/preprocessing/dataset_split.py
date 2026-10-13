@@ -74,8 +74,9 @@ def log_split_metrics(splits: dict[str, pd.DataFrame | list[pd.DataFrame]]) -> d
         parts = {f"{name}_fold_{k}": df for k, df in enumerate(data)} if isinstance(data, list) else {name: data}
         for part, df in parts.items():
             metrics[f"{part}_n_patients"] = len(df)
-            metrics[f"{part}_n_os_events"] = int(df["os_event"].sum())
-            metrics[f"{part}_n_css_events"] = int(df["css_event"].sum())
+            for endpoint in ("os", "css"):
+                if df[f"{endpoint}_event"].notna().any():  # MUG has no cause of death
+                    metrics[f"{part}_n_{endpoint}_events"] = int(df[f"{endpoint}_event"].sum())
     return metrics
 
 

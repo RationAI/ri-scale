@@ -1,0 +1,16 @@
+# @package _global_
+
+dataset:
+  institute: mug
+  name: MUG
+  path: ???   # mug_lymph_nodes_filtered_rev1_patients.csv (one row per patient, overall survival)
+
+  # Patients with any of these review flags are left out. clinical_context_review_flag marks a
+  # recurrence, prior treatment, multiple tumours, an unusual site / histology or an uncertain origin.
+  exclude_flags: [clinical_context_review_flag]
+
+  # TNM and age describe the examination, but survival runs from the first diagnosis, so a patient
+  # examined later had to survive until then (immortal time). Patients examined more than this many
+  # days after the diagnosis are left out; null keeps everyone. The examination_delay_days/* metrics
+  # show the distribution.
+  max_examination_delay_days: 365

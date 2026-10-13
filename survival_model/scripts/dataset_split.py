@@ -1,4 +1,4 @@
-"""Usage: uv run scripts/dataset_split.py patients_uri=mlflow-artifacts:/<exp>/<run>/artifacts/patients.parquet"""
+"""Usage: uv run scripts/dataset_split.py patients_uri=mlflow-artifacts:/<exp>/<run>/artifacts/patients.parquet [+data=split/mug]"""
 
 import shlex
 import sys
@@ -6,7 +6,10 @@ import sys
 from kube_jobs import storage, submit_job
 
 # Hydra overrides from the command line, so run URIs need no commit
-overrides = " ".join(shlex.quote(arg) for arg in sys.argv[1:])
+args = sys.argv[1:]
+if not any(arg.startswith("+data=") for arg in args):
+    args = ["+data=split/mmci", *args]  # MMCI unless another dataset is given
+overrides = " ".join(shlex.quote(arg) for arg in args)
 
 
 submit_job(
@@ -21,7 +24,7 @@ submit_job(
         "cd workdir/survival_model",
         "uv sync --frozen",
         "export MLFLOW_TRACKING_URI=http://mlflow-s3.rationai-mlflow",
-        f"uv run -m preprocessing.dataset_split +data=split/mmci {overrides}",
+        f"uv run -m preprocessing.dataset_split {overrides}",
     ],
     storage=[storage.secure.DATA, storage.secure.PROJECTS],
 )

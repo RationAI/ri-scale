@@ -77,29 +77,40 @@ def _parse_column(
     return parsed, unparsed, pairs
 
 
-def parse_records(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, dict]]:
-    """Parse every cell into its canonical value; returns the records and a parse report."""
+def parse_columns(
+    raw: pd.DataFrame, parsers: dict[str, Callable[[Any], Any]], private: frozenset[str]
+) -> tuple[pd.DataFrame, dict[str, dict]]:
+    """Parse every cell into its canonical value; returns the parsed columns and a parse report.
+
+    Raw values of ``private`` columns are never echoed into the report.
+    """
     records = pd.DataFrame(index=raw.index)
     report: dict[str, dict] = {}
-    for column, parser in PARSERS.items():
+    for column, parser in parsers.items():
         if column not in raw:
             records[column] = None
             report[column] = {"present": False}
             continue
         parsed, unparsed, pairs = _parse_column(raw[column], parser)
         records[column] = parsed
-        private = column in _PRIVATE_COLUMNS
+        hidden = column in private
         report[column] = {
             "present": True,
             "n_filled": int((~raw[column].map(vp.is_missing)).sum()),
             "n_unparsed": sum(unparsed.values()),
-            "unparsed_values": {} if private else dict(unparsed.most_common(50)),
+            "unparsed_values": {} if hidden else dict(unparsed.most_common(50)),
             # What each raw value became, so values parsed into the wrong category show up too
-            "values": [] if private else [
+            "values": [] if hidden else [
                 {"raw": raw_value, "parsed": value, "n": n}
                 for (raw_value, value), n in pairs.most_common(50)
             ],
         }
+    return records, report
+
+
+def parse_records(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, dict]]:
+    """Parse every cell into its canonical value; returns the records and a parse report."""
+    records, report = parse_columns(raw, PARSERS, _PRIVATE_COLUMNS)
 
     for column in DATE_COLUMNS:
         records[column] = pd.to_datetime(records[column])
@@ -236,7 +247,7 @@ def _starts_with(series: pd.Series, prefix: str) -> pd.Series:
     return series.map(lambda v: isinstance(v, str) and v.startswith(prefix)).astype(bool)
 
 
-def _main_stage(stage: Any) -> str | None:
+def main_stage(stage: Any) -> str | None:
     match = re.match(r"^(0|IV|I{1,3})", stage) if isinstance(stage, str) else None
     return match.group(1) if match else None
 
@@ -273,7 +284,7 @@ def add_tumor_fields(patients: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, fl
     )
     patients["pn"] = patients["pn"].where(patients["pn"].notna(), from_counts)
 
-    reported = patients["clinical_stage"].map(_main_stage)
+    reported = patients["clinical_stage"].map(main_stage)
     derived = pd.Series(
         [_derive_stage(*row) for row in patients[["pt", "pn", "m"]].itertuples(index=False)],
         index=patients.index,
@@ -390,7 +401,7 @@ def build_patients(
     return patients[OUTPUT_COLUMNS].reset_index(drop=True), {**stats, **tumor_stats, **outcome_stats}
 
 
-def _median_follow_up_years(patients: pd.DataFrame) -> float:
+def median_follow_up_years(patients: pd.DataFrame) -> float:
     """Reverse Kaplan-Meier median follow-up."""
     kmf = KaplanMeierFitter().fit(patients["time_days"], event_observed=~patients["os_event"])
     return float(kmf.median_survival_time_) / 365.25
@@ -403,7 +414,7 @@ def dataset_metrics(records: pd.DataFrame, patients: pd.DataFrame) -> dict[str, 
         "n_patients": len(patients),
         "n_os_events": int(patients["os_event"].sum()),
         "n_css_events": int(patients["css_event"].sum()),
-        "median_follow_up_years": _median_follow_up_years(patients),
+        "median_follow_up_years": median_follow_up_years(patients),
     }
     for column in OUTPUT_COLUMNS:
         if column not in ("patient_id", "time_days", "os_event", "css_event"):

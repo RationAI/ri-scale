@@ -1,0 +1,12 @@
+# @package _global_
+
+dataset: ???
+
+metadata:
+  run_name: Clinical dataset of ${dataset.name}
+  description: Patient-level survival table of the ${dataset.name} export
+  hyperparams:
+    institute: ${dataset.institute}
+    name: ${dataset.name}
+    exclude_flags: ${dataset.exclude_flags}
+    max_examination_delay_days: ${dataset.max_examination_delay_days}

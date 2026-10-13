@@ -13,7 +13,7 @@ from typing import Any
 
 import pandas as pd
 
-_MISSING = frozenset({"", "-", "--", "?", "nan", "nat", "none", "null", "n/a"})
+_MISSING = frozenset({"", "-", "--", "?", "nan", "nat", "none", "null", "n/a", "unknown"})
 _EXCEL_EPOCH = pd.Timestamp("1899-12-30")
 
 
@@ -218,6 +218,29 @@ def parse_n(value: Any) -> str | None:
 
 def parse_m(value: Any) -> str | None:
     return parse_tnm(value, "M")
+
+
+_RLV = {category: re.compile(rf"^{category.lower()}?([0-2]|x)$") for category in "RLV"}
+
+
+def parse_rlv(value: Any, category: str) -> str | None:
+    """Residual tumour (R), lymphatic (L) or venous (V) invasion, e.g. "R1" / "1" -> "R1", "Lx" -> None."""
+    match = _RLV[category].match(normalize_text(value).replace(" ", ""))
+    if not match:
+        raise ValueError(value)
+    return None if match.group(1) == "x" else category + match.group(1)
+
+
+def parse_r(value: Any) -> str | None:
+    return parse_rlv(value, "R")
+
+
+def parse_l(value: Any) -> str | None:
+    return parse_rlv(value, "L")
+
+
+def parse_v(value: Any) -> str | None:
+    return parse_rlv(value, "V")
 
 
 _STAGE = re.compile(r"^(?:stadium|stage|st\.?)?\s*(iv|i{1,3}|[0-4])\s*([abc])?$")
