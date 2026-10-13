@@ -38,7 +38,8 @@ def _first_match(code: Any, groups: dict[str, tuple[str, ...]], default: str | N
 def _pt_group(pt: Any) -> str | None:
     if not isinstance(pt, str):
         return None
-    return "T0-2" if pt in ("T0", "Tis", "T1", "T2") else pt[:2]
+    group = pt[:2]  # substages (T1a, T4b) join their main category; "Ti" is Tis
+    return "T0-2" if group in ("T0", "Ti", "T1", "T2") else group
 
 
 def _prefix(value: Any, length: int = 2) -> str | None:
