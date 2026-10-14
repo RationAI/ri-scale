@@ -18,6 +18,11 @@ analysis:
 data:
   splits_uri: ???
 
+# Patients the model is trained and evaluated on: the CV folds, the test set and the external set alike
+cohort:
+  min_diagnosis_year: null # e.g. 2000; surgery, chemotherapy and the TNM editions changed over the decades
+  exclude_stage_groups: [] # e.g. [IV] for a model of stage I-III disease; patients with unknown stage are kept
+
 metadata:
   experiment_name: RI Scale
   run_name: ???
@@ -28,3 +33,5 @@ metadata:
     horizons: ${horizons}
     model: ${hydra:runtime.choices.model}
     features: ${hydra:runtime.choices.features}
+    min_diagnosis_year: ${cohort.min_diagnosis_year}
+    exclude_stage_groups: ${cohort.exclude_stage_groups}

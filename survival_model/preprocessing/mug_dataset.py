@@ -123,7 +123,6 @@ def build_patients(
     parsed: pd.DataFrame,
     exclude_flags: list[str],
     max_examination_delay_days: float | None,
-    min_diagnosis_year: int | None,
 ) -> tuple[pd.DataFrame, dict[str, float]]:
     stage = stage_group(parsed["stage_major_recorded"], parsed["stage_recorded"])
     m, m_stats = fill_m(parsed["m_category"], stage)
@@ -164,9 +163,6 @@ def build_patients(
         stats[f"excluded_{flag}"] = int((hit & ~flagged).sum())
         flagged |= hit
 
-    early = pd.Series(False, index=parsed.index)
-    if min_diagnosis_year is not None:
-        early = patients["diagnosis_year"] < min_diagnosis_year
     late = pd.Series(False, index=parsed.index)
     if max_examination_delay_days is not None:
         late = delay > max_examination_delay_days
@@ -174,7 +170,6 @@ def build_patients(
     negative = patients["time_days"] < 0
     excluded = flagged.copy()
     for name, mask in [
-        ("diagnosed_before_min_year", early),
         ("late_examination", late),
         ("no_outcome", no_outcome),
         ("negative_follow_up", negative),
@@ -217,12 +212,10 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
     parsed, parse_report = parse_columns(raw, PARSERS, _PRIVATE_COLUMNS)
     max_delay: Any = config.dataset.max_examination_delay_days
-    min_year: Any = config.dataset.min_diagnosis_year
     patients, stats = build_patients(
         parsed,
         list(config.dataset.exclude_flags),
         None if max_delay is None else float(max_delay),
-        None if min_year is None else int(min_year),
     )
 
     for column, entry in parse_report.items():

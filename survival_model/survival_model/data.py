@@ -28,6 +28,16 @@ class Fold:
         )
 
 
+def select_cohort(
+    patients: pd.DataFrame, min_diagnosis_year: int | None, exclude_stage_groups: list[str]
+) -> pd.DataFrame:
+    """Patients diagnosed in or after ``min_diagnosis_year`` and not in ``exclude_stage_groups``."""
+    keep = ~patients["stage_group"].isin(exclude_stage_groups)
+    if min_diagnosis_year is not None:
+        keep &= patients["diagnosis_year"] >= min_diagnosis_year
+    return patients[keep].reset_index(drop=True)
+
+
 def load_patients(patients_uri: str) -> pd.DataFrame:
     """patients.parquet written by preprocessing.clinical_dataset / mug_dataset."""
     return pd.read_parquet(download_artifacts(artifact_uri=patients_uri))

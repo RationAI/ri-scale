@@ -14,7 +14,7 @@ from sklearn.base import clone
 from sklearn.pipeline import Pipeline
 
 from survival_model import significance
-from survival_model.data import Fold, load_patients, load_splits
+from survival_model.data import Fold, load_patients, load_splits, select_cohort
 from survival_model.evaluation import (
     bootstrap_c_index,
     coefficients,
@@ -34,9 +34,19 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     np.random.seed(config.seed)
     horizons = list(config.horizons)
 
+    def cohort(patients: pd.DataFrame) -> pd.DataFrame:
+        return select_cohort(
+            patients, config.cohort.min_diagnosis_year, list(config.cohort.exclude_stage_groups)
+        )
+
     train_dfs, test_df = load_splits(config.data.splits_uri)
+    train_dfs, test_df = [cohort(df) for df in train_dfs], cohort(test_df)
     folds = [Fold.from_patients(df, config.endpoint) for df in train_dfs]
     train = Fold.concat(folds)
+    mlflow.log_metrics({
+        "cohort/n_train_patients": len(train.y),
+        "cohort/n_train_events": int(train.y["event"].sum()),
+    })
 
     features = OmegaConf.to_container(config.features, resolve=True)
     pipeline = Pipeline([
@@ -82,7 +92,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
         if external_uri := config.data.get("external_uri"):
             # Another institute's patients, not used for training or tuning
-            external = Fold.from_patients(load_patients(external_uri), config.endpoint)
+            external = Fold.from_patients(cohort(load_patients(external_uri)), config.endpoint)
             external_metrics = evaluate(final, external.X, external.y, train.y, horizons)
             external_metrics |= bootstrap_c_index(final.predict(external.X), external.y, seed=config.seed)
             mlflow.log_metrics({f"external/{k}": v for k, v in external_metrics.items()})

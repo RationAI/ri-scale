@@ -44,6 +44,10 @@ uv run -m survival_model +experiment=mug data.splits_uri=<MUG split run> \
   had to survive until the examination.
 * Patients with `clinical_context_review_flag` (recurrence, prior treatment, multiple tumours, ...)
   are left out (`exclude_flags`). R, L and V are kept in `patients.parquet` but MMCI does not have them.
+* MUG covers diagnoses from 1984 to 2013 (follow-up until 2018) and is almost entirely stage II-III;
+  the `era/*` metrics give 5-year survival per decade of diagnosis. `cohort.min_diagnosis_year`
+  and `cohort.exclude_stage_groups` select the patients of the CV folds, the test set and the
+  external set alike, e.g. `cohort.min_diagnosis_year=2000 'cohort.exclude_stage_groups=[IV]'`.
 * `data.external_uri` evaluates the final model on another institute's patients
   (`external/*` metrics, `external_predictions.csv`). As with the test set, use it only once the model
   and feature set are fixed. Only overall survival is available for MUG.
