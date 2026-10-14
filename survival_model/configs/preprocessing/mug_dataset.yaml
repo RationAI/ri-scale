@@ -10,3 +10,4 @@ metadata:
     name: ${dataset.name}
     exclude_flags: ${dataset.exclude_flags}
     max_examination_delay_days: ${dataset.max_examination_delay_days}
+    min_diagnosis_year: ${dataset.min_diagnosis_year}

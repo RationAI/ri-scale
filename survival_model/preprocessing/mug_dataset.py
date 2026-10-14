@@ -16,6 +16,7 @@ import hydra
 import mlflow
 import numpy as np
 import pandas as pd
+from lifelines import KaplanMeierFitter
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
@@ -99,8 +100,30 @@ def examination_delay_stats(delay: pd.Series) -> dict[str, float]:
     }
 
 
+def era_metrics(patients: pd.DataFrame) -> dict[str, float]:
+    """Patients, deaths and 5-year overall survival per decade of diagnosis.
+
+    MUG spans decades in which surgery, chemotherapy and the TNM editions changed, so
+    survival of early and recent patients may differ at the same stage.
+    """
+    years = patients["diagnosis_year"].dropna()
+    if years.empty:
+        return {}
+    metrics = {"diagnosis_year/min": float(years.min()), "diagnosis_year/max": float(years.max())}
+    decade = (patients["diagnosis_year"] // 10 * 10).dropna().astype(int)
+    for start, group in patients.loc[decade.index].groupby(decade):
+        kmf = KaplanMeierFitter().fit(group["time_days"] / 365.25, group["os_event"])
+        metrics[f"era/{start}s/n_patients"] = len(group)
+        metrics[f"era/{start}s/n_os_events"] = int(group["os_event"].sum())
+        metrics[f"era/{start}s/os_5y"] = float(kmf.predict(5))
+    return metrics
+
+
 def build_patients(
-    parsed: pd.DataFrame, exclude_flags: list[str], max_examination_delay_days: float | None
+    parsed: pd.DataFrame,
+    exclude_flags: list[str],
+    max_examination_delay_days: float | None,
+    min_diagnosis_year: int | None,
 ) -> tuple[pd.DataFrame, dict[str, float]]:
     stage = stage_group(parsed["stage_major_recorded"], parsed["stage_recorded"])
     m, m_stats = fill_m(parsed["m_category"], stage)
@@ -141,18 +164,25 @@ def build_patients(
         stats[f"excluded_{flag}"] = int((hit & ~flagged).sum())
         flagged |= hit
 
+    early = pd.Series(False, index=parsed.index)
+    if min_diagnosis_year is not None:
+        early = patients["diagnosis_year"] < min_diagnosis_year
     late = pd.Series(False, index=parsed.index)
     if max_examination_delay_days is not None:
         late = delay > max_examination_delay_days
     no_outcome = patients["time_days"].isna() | patients["os_event"].isna()
     negative = patients["time_days"] < 0
-    stats |= {
-        "n_implausible_age": int((age.notna() & ~plausible_age).sum()),
-        "excluded_late_examination": int((late & ~flagged).sum()),
-        "excluded_no_outcome": int((no_outcome & ~flagged & ~late).sum()),
-        "excluded_negative_follow_up": int((negative & ~flagged & ~late & ~no_outcome).sum()),
-    }
-    patients = patients[~(flagged | late | no_outcome | negative)].copy()
+    excluded = flagged.copy()
+    for name, mask in [
+        ("diagnosed_before_min_year", early),
+        ("late_examination", late),
+        ("no_outcome", no_outcome),
+        ("negative_follow_up", negative),
+    ]:
+        stats[f"excluded_{name}"] = int((mask & ~excluded).sum())
+        excluded |= mask
+    stats["n_implausible_age"] = int((age.notna() & ~plausible_age).sum())
+    patients = patients[~excluded].copy()
     patients["os_event"] = patients["os_event"].astype(bool)
     patients["time_days"] = patients["time_days"].clip(lower=1)  # same-day deaths
     return patients.reset_index(drop=True), stats
@@ -187,8 +217,12 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
     parsed, parse_report = parse_columns(raw, PARSERS, _PRIVATE_COLUMNS)
     max_delay: Any = config.dataset.max_examination_delay_days
+    min_year: Any = config.dataset.min_diagnosis_year
     patients, stats = build_patients(
-        parsed, list(config.dataset.exclude_flags), None if max_delay is None else float(max_delay)
+        parsed,
+        list(config.dataset.exclude_flags),
+        None if max_delay is None else float(max_delay),
+        None if min_year is None else int(min_year),
     )
 
     for column, entry in parse_report.items():
@@ -197,6 +231,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
     mlflow.log_metrics({
         **dataset_metrics(raw, patients),
+        **era_metrics(patients),
         **{k: v for k, v in stats.items() if not np.isnan(v)},
     })
 

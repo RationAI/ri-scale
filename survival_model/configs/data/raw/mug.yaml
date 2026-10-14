@@ -14,3 +14,8 @@ dataset:
   # days after the diagnosis are left out; null keeps everyone. The examination_delay_days/* metrics
   # show the distribution.
   max_examination_delay_days: 365
+
+  # Patients diagnosed before this year are left out; null keeps everyone. MUG starts around 1980
+  # (follow-up cut off in 2018) and MMCI is from 2015-2016, while surgery, chemotherapy and the TNM
+  # editions changed in between. The era/* metrics show survival per decade of diagnosis.
+  min_diagnosis_year: null
