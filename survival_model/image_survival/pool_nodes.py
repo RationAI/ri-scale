@@ -6,7 +6,10 @@ the slide-name suffix (LNN / LNP / M, a pathologist's staging result).
 
 usage: python -m image_survival.pool_nodes --features <dir> --cohort cohort_slides.json --patients patients_min.csv --out nodes.npz
 """
-import argparse, csv, json, os
+import argparse
+import csv
+import json
+import os
 
 import h5py
 import numpy as np
@@ -21,8 +24,10 @@ def main() -> None:
     ap.add_argument("--margin", type=float, default=0.05, help="a tile is a margin tile below this node fraction")
     a = ap.parse_args()
 
-    patient_of = {r["case_ids"]: r["patient_id"] for r in csv.DictReader(open(a.patients))}
-    cohort = json.load(open(a.cohort))
+    with open(a.patients) as f:
+        patient_of = {r["case_ids"]: r["patient_id"] for r in csv.DictReader(f)}
+    with open(a.cohort) as f:
+        cohort = json.load(f)
     rows: dict[str, list] = {k: [] for k in ("patient", "slide_idx", "node", "n_core", "n_margin", "area_mm2")}
     core, margin = [], []
     skipped = {"no_file": 0, "no_core_tile": 0}

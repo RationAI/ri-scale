@@ -4,11 +4,35 @@ import torch
 from sklearn.decomposition import PCA
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 
+from survival_model.features import TabularEncoder
+
+# Reference levels of configs/features/default.yaml
+REFERENCE = {"sex": "M", "location": "left", "morphology_group": "adenocarcinoma", "grade_group": "low", "pt_group": "T0-2",
+             "pn_group": "N0", "m_group": "M0", "neoadjuvant": "no", "mmr": "pMMR", "kras": "wt", "nras": "wt", "braf": "wt"}
+TNM = {"numeric": ["age"], "categorical": ["sex", "pt_group", "pn_group", "m_group"]}
+FULL = {"numeric": ["age", "nodes_examined"], "categorical": ["sex", "location", "morphology_group", "grade_group", "pt_group",
+            "pn_group", "m_group", "neoadjuvant", "mmr", "kras", "nras", "braf"]}
+
 
 def _standardise(train: np.ndarray, other: np.ndarray | None = None):
     mean, std = train.mean(0), train.std(0)
     std = np.where(std < 1e-8, 1.0, std)
     return ((train - mean) / std,) if other is None else ((train - mean) / std, (other - mean) / std)
+
+
+class ExcelCox:
+    """Reference from the Excel sheet: the encoder and ridge Cox of the first survival model, on the same patients and folds."""
+
+    def __init__(self, spec: dict, alpha: float = 0.1) -> None:
+        self.spec, self.alpha = spec, alpha
+
+    def fit(self, c, idx):
+        self.enc = TabularEncoder(**self.spec, reference=REFERENCE, min_category_count=10, scale_numeric=True).fit(c.features.iloc[idx])
+        self.model = CoxPHSurvivalAnalysis(alpha=self.alpha).fit(self.enc.transform(c.features.iloc[idx]).to_numpy(), c.y[idx])
+        return self
+
+    def risk(self, c, idx):
+        return self.model.predict(self.enc.transform(c.features.iloc[idx]).to_numpy())
 
 
 class ClinicalCox:
@@ -32,19 +56,23 @@ class ClinicalCox:
 class PooledCox:
     """Mean node embedding per patient -> PCA -> ridge Cox, optionally with the hand-made node numbers."""
 
-    def __init__(self, n_components: int = 8, alpha: float = 10.0, hand: bool = False) -> None:
-        self.n_components, self.alpha, self.hand = n_components, alpha, hand
+    def __init__(self, n_components: int = 8, alpha: float = 10.0, hand: bool = False, tnm: bool = False) -> None:
+        self.n_components, self.alpha, self.hand, self.tnm = n_components, alpha, hand, tnm
 
     def _pooled(self, c, idx):
         return np.stack([c.bags[i].mean(0) for i in idx])
 
     def _x(self, c, idx, fit: bool):
         pooled = self._pooled(c, idx)
+        if self.tnm:  # pT, pN and M next to the image features: do the images add to the staging?
+            if fit:
+                self.enc = TabularEncoder(numeric=[], categorical=TNM["categorical"][1:], reference=REFERENCE, min_category_count=10).fit(c.features.iloc[idx])
+            tnm = self.enc.transform(c.features.iloc[idx]).to_numpy()
         if fit:
             self.emb_mean, self.emb_std = pooled.mean(0), np.where(pooled.std(0) < 1e-8, 1.0, pooled.std(0))
             self.pca = PCA(self.n_components, random_state=0).fit((pooled - self.emb_mean) / self.emb_std)
         z = self.pca.transform((pooled - self.emb_mean) / self.emb_std)
-        cols = [z, c.age[idx, None], c.male[idx, None]] + ([c.hand_features()[idx]] if self.hand else [])
+        cols = [z, c.age[idx, None], c.male[idx, None]] + ([c.hand_features()[idx]] if self.hand else []) + ([tnm] if self.tnm else [])
         return np.column_stack(cols)
 
     def fit(self, c, idx):

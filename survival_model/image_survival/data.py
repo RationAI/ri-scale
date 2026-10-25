@@ -2,14 +2,19 @@ import numpy as np
 import pandas as pd
 from sksurv.util import Surv
 
+from survival_model.features import derive_features
+
 
 class Cohort:
     """Patients with their node bags. ``bags[i]`` are the node embeddings of patient i."""
 
-    def __init__(self, nodes_path: str, patients_path: str, margin: bool = False, min_nodes: int = 1) -> None:
+    def __init__(self, nodes_path: str, patients_path: str, embedding: str = "core", min_nodes: int = 1) -> None:
+        """``embedding``: "core" (node tiles) or "both" (core | margin, a node without margin tiles repeats its core)."""
         patients = pd.read_csv(patients_path) if patients_path.endswith(".csv") else pd.read_parquet(patients_path)
         z = np.load(nodes_path, allow_pickle=False)
-        emb = z["margin"] if margin else z["core"]
+        emb = z["core"]
+        if embedding == "both":
+            emb = np.concatenate([emb, np.where(np.isnan(z["margin"]), z["core"], z["margin"])], axis=1)
         self.node_table = pd.DataFrame({k: z[k] for k in ("patient", "slide_idx", "node", "n_core", "n_margin", "area_mm2")})
         keep = []
         bags, nodes = [], []
@@ -19,6 +24,8 @@ class Cohort:
                 keep.append(pid); bags.append(emb[idx].astype(np.float32)); nodes.append(self.node_table.iloc[idx])
         self.patients = patients.set_index("patient_id").loc[keep].reset_index()
         self.bags, self.nodes = bags, nodes
+        # Excel-derived features (stage, M, markers) exist only when the full patient table is given
+        self.features = derive_features(self.patients) if "nodes_positive" in self.patients else None
         self.age = self.patients["age"].to_numpy(float)
         self.male = (self.patients["sex"] == "M").to_numpy(float)
         self.y = Surv.from_arrays(self.patients["os_event"].astype(bool).to_numpy(),

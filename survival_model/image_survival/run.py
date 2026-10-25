@@ -5,15 +5,28 @@ With a few hundred patients a single split says little, so every model is scored
 
 usage: python -m image_survival.run --nodes nodes.npz --patients patients_min.csv --out results/
 """
-import argparse, json, os, time
+import argparse
+import json
+import os
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import RepeatedStratifiedKFold
-from sksurv.metrics import concordance_index_censored, concordance_index_ipcw, cumulative_dynamic_auc
+from sksurv.metrics import (
+    concordance_index_censored,
+    concordance_index_ipcw,
+    cumulative_dynamic_auc,
+)
 
 from image_survival.data import Cohort
-from image_survival.models import AttentionMIL, ClinicalCox, PooledCox
+from image_survival.models import (
+    FULL,
+    TNM,
+    AttentionMIL,
+    ClinicalCox,
+    ExcelCox,
+    PooledCox,
+)
 
 MODELS = {
     "clinical": lambda: ClinicalCox(),
@@ -22,7 +35,12 @@ MODELS = {
     "pooled_pca16": lambda: PooledCox(n_components=16),
     "mil": lambda: AttentionMIL(),
     "mil_image_only": lambda: AttentionMIL(use_clinical=False),
+    # need the Excel-derived features (full patient table): the staging the image models are meant to replace
+    "excel_tnm": lambda: ExcelCox(TNM),
+    "excel_full": lambda: ExcelCox(FULL),
+    "pooled_pca8_tnm": lambda: PooledCox(n_components=8, tnm=True),
 }
+NEEDS_EXCEL = {"excel_tnm", "excel_full", "pooled_pca8_tnm"}
 
 
 def score(y_train, y_test, risk, horizons=(3.0, 5.0)) -> dict:
@@ -43,18 +61,20 @@ def main() -> None:
     ap.add_argument("--nodes", required=True); ap.add_argument("--patients", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--models", default=",".join(MODELS)); ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--repeats", type=int, default=5); ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--margin", action="store_true", help="use the margin embeddings instead of the node core")
+    ap.add_argument("--embedding", default="core", choices=["core", "both"], help="node core tiles, or core + margin tiles")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
-    cohort = Cohort(a.nodes, a.patients, margin=a.margin)
+    cohort = Cohort(a.nodes, a.patients, embedding=a.embedding)
     print(json.dumps(cohort.summary()), flush=True)
     names = a.models.split(",")
+    if cohort.features is None:
+        print("no Excel-derived features in the patient table, skipping", sorted(NEEDS_EXCEL & set(names)))
+        names = [n for n in names if n not in NEEDS_EXCEL]
     splitter = RepeatedStratifiedKFold(n_splits=a.folds, n_repeats=a.repeats, random_state=a.seed)
     rows = []
     for f, (train, test) in enumerate(splitter.split(np.zeros(len(cohort)), cohort.y["event"])):
         for name in names:
-            t0 = time.time()
             risk = MODELS[name]().fit(cohort, train).risk(cohort, test)
             rows.append({"model": name, "repeat": f // a.folds, "fold": f % a.folds, **score(cohort.y[train], cohort.y[test], risk)})
         print(f"fold {f + 1}/{a.folds * a.repeats} done", flush=True)
