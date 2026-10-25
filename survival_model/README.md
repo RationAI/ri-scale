@@ -57,6 +57,25 @@ uv run -m survival_model +experiment=mug data.splits_uri=<MUG split run> \
 `uv run scripts/synthetic_excel.py /tmp/export/mmci.xlsx`. It writes a synthetic MMCI export with the
 real header and a known ground truth: sex, KRAS and NRAS have no effect.
 
+## Survival from the lymph-node images (MMCI)
+
+A second model predicts overall survival from the segmented lymph nodes (SAM3 predictions, see the lymph-node
+segmentation project) plus age and sex, without the stage, TNM or markers of the Excel sheet. It runs on musica
+(the slides stay there), in `image_survival/`:
+
+1. `scripts/extract_virchow2.py` embeds every 256-px tile (0.5 um/px) that overlaps a predicted node or its 50 um margin
+   with Virchow2 (class token + mean patch token, 2560-d, fp16), one `.h5` per slide. Slides are read in place and only
+   the `.h5` files are written. Needs `timm`, `h5py`, `opencv`, `openslide` (install them inside the Slurm job).
+2. `python -m image_survival.pool_nodes` averages the tiles of every node (core: at least half of the tile is node;
+   margin: below 5 %) into `nodes.npz`. The slide name is reduced to a running index, so the LNN / LNP / M suffix, which is
+   a pathologist's staging result, cannot reach the model.
+3. `python -m image_survival.run` scores age + sex only, pooled embeddings (PCA + ridge Cox) and a gated-attention
+   multiple-instance model with a Cox loss on the same repeated patient-level folds, and reports the gain over age + sex
+   fold by fold. Hyper-parameters are fixed, not tuned on the folds. With ~200 patients and ~90 deaths a single split
+   says little, hence the repeats.
+
+`scripts/synthetic_nodes.py` writes synthetic embeddings with a known signal to test steps 2-3 without patient data.
+
 ## Preprocessing
 
 * Headers are matched by the regexes in `configs/data/raw/mmci.yaml` (accents and case ignored),
