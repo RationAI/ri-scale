@@ -25,6 +25,7 @@ from image_survival.models import (
     AttentionMIL,
     ClinicalCox,
     ExcelCox,
+    NodeRatioCox,
     PooledCox,
 )
 
@@ -35,6 +36,10 @@ MODELS = {
     "pooled_pca16": lambda: PooledCox(n_components=16),
     "mil": lambda: AttentionMIL(),
     "mil_image_only": lambda: AttentionMIL(use_clinical=False),
+    # node detector trained on "has a positive node" -> lymph-node ratio and burden from the images
+    "ratio": lambda: NodeRatioCox("ratio"),
+    "ratio_full": lambda: NodeRatioCox("ratio_full"),
+    "burden": lambda: NodeRatioCox("burden"),
     # need the Excel-derived features (full patient table): the staging the image models are meant to replace
     "excel_tnm": lambda: ExcelCox(TNM),
     "excel_full": lambda: ExcelCox(FULL),
@@ -75,8 +80,9 @@ def main() -> None:
     rows = []
     for f, (train, test) in enumerate(splitter.split(np.zeros(len(cohort)), cohort.y["event"])):
         for name in names:
-            risk = MODELS[name]().fit(cohort, train).risk(cohort, test)
-            rows.append({"model": name, "repeat": f // a.folds, "fold": f % a.folds, **score(cohort.y[train], cohort.y[test], risk)})
+            model = MODELS[name]().fit(cohort, train)
+            extra = model.extra_metrics(cohort, test) if hasattr(model, "extra_metrics") else {}
+            rows.append({"model": name, "repeat": f // a.folds, "fold": f % a.folds, **score(cohort.y[train], cohort.y[test], model.risk(cohort, test)), **extra})
         print(f"fold {f + 1}/{a.folds * a.repeats} done", flush=True)
     df = pd.DataFrame(rows); df.to_csv(f"{a.out}/fold_metrics.csv", index=False)
 

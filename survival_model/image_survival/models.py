@@ -1,4 +1,6 @@
 """Risk models on a ``Cohort``. Every model has ``fit(cohort, idx)`` and ``risk(cohort, idx)`` (higher = worse)."""
+from typing import ClassVar
+
 import numpy as np
 import torch
 from sklearn.decomposition import PCA
@@ -83,6 +85,92 @@ class PooledCox:
 
     def risk(self, c, idx):
         return self.model.predict((self._x(c, idx, fit=False) - self.mean) / self.std)
+
+
+class NodeRatioCox:
+    """Lymph-node ratio from the images.
+
+    A node detector scores every node (hazard h_i, P(node is tumour) = 1 - exp(-h_i)); a patient is positive when any node
+    is (P = 1 - exp(-sum h_i)), so it can be trained with the patient-level "has a positive node" label only. The patient
+    features are the expected number of positive nodes, their share of all nodes (the ratio), the highest node score and the
+    node count, which go into a ridge Cox model with age and sex. Scores of the training patients come from inner
+    cross-fitting, so the Cox model never sees in-sample (over-optimistic) detector output.
+    """
+
+    FEATURES: ClassVar[dict[str, list[str]]] = {"ratio": ["ratio"], "ratio_full": ["ratio", "n_pos", "max_s", "log_n"], "burden": ["n_pos", "max_s", "log_n"]}
+
+    def __init__(self, features: str = "ratio_full", n_components: int = 32, l2: float = 1e-2, inner_folds: int = 5,
+                 alpha: float = 1.0, steps: int = 300) -> None:
+        self.features, self.n_components, self.l2, self.inner_folds, self.alpha, self.steps = features, n_components, l2, inner_folds, alpha, steps
+
+    # -- node detector
+    def _nodes(self, c, idx):
+        z = np.concatenate([c.bags[i] for i in idx]); owner = np.repeat(np.arange(len(idx)), [len(c.bags[i]) for i in idx])
+        return z, owner
+
+    def _fit_detector(self, c, idx):
+        z, owner = self._nodes(c, idx); y = c.node_positive[idx]; known = ~np.isnan(y)
+        zt = torch.as_tensor(self.pca.transform((z - self.mean) / self.std), dtype=torch.float32)
+        own, lab = torch.as_tensor(owner), torch.as_tensor(np.nan_to_num(y), dtype=torch.float32); keep = torch.as_tensor(known)
+        w = torch.zeros(zt.shape[1], requires_grad=True); b = torch.full((1,), -4.0, requires_grad=True)
+        opt = torch.optim.Adam([w, b], lr=0.05)
+        for _ in range(self.steps):
+            opt.zero_grad()
+            h = torch.nn.functional.softplus(zt @ w + b)
+            total = torch.zeros(len(idx)).index_add_(0, own, h)                       # sum of hazards per patient
+            p = (1 - torch.exp(-total)).clamp(1e-5, 1 - 1e-5)
+            loss = torch.nn.functional.binary_cross_entropy(p[keep], lab[keep]) + self.l2 * (w ** 2).sum()
+            loss.backward(); opt.step()
+        return w.detach(), b.detach()
+
+    def _scores(self, c, idx, detector):
+        z, owner = self._nodes(c, idx)
+        zt = torch.as_tensor(self.pca.transform((z - self.mean) / self.std), dtype=torch.float32)
+        s = (1 - torch.exp(-torch.nn.functional.softplus(zt @ detector[0] + detector[1]))).numpy()
+        return [s[owner == k] for k in range(len(idx))]
+
+    def _patient_features(self, scores):
+        rows = []
+        for s in scores:
+            rows.append({"n_pos": s.sum(), "ratio": s.sum() / len(s), "max_s": s.max(), "log_n": np.log(len(s))})
+        return rows
+
+    def _matrix(self, rows):
+        return np.array([[r[k] for k in self.FEATURES[self.features]] for r in rows])
+
+    def fit(self, c, idx):
+        allnodes = np.concatenate([c.bags[i] for i in idx])
+        self.mean, self.std = allnodes.mean(0), np.where(allnodes.std(0) < 1e-8, 1.0, allnodes.std(0))
+        self.pca = PCA(self.n_components, random_state=0).fit((allnodes - self.mean) / self.std)
+        # inner cross-fitting: out-of-fold node scores for the training patients
+        from sklearn.model_selection import StratifiedKFold
+        y = np.nan_to_num(c.node_positive[idx], nan=0.0).astype(int); oof = [None] * len(idx)
+        for tr, te in StratifiedKFold(self.inner_folds, shuffle=True, random_state=0).split(np.zeros(len(idx)), y):
+            det = self._fit_detector(c, idx[tr])
+            for k, s in zip(te, self._scores(c, idx[te], det)): oof[k] = s
+        self.detector = self._fit_detector(c, idx)
+        x = np.column_stack([c.age[idx], c.male[idx], self._matrix(self._patient_features(oof))])
+        self.xm, self.xs = x.mean(0), np.where(x.std(0) < 1e-8, 1.0, x.std(0))
+        self.model = CoxPHSurvivalAnalysis(alpha=self.alpha).fit((x - self.xm) / self.xs, c.y[idx])
+        return self
+
+    def risk(self, c, idx):
+        rows = self._patient_features(self._scores(c, idx, self.detector))
+        x = np.column_stack([c.age[idx], c.male[idx], self._matrix(rows)])
+        return self.model.predict((x - self.xm) / self.xs)
+
+    def extra_metrics(self, c, idx):
+        """Does the image-derived ratio match the pathologist's? (AUC for any positive node, Spearman for the ratio)"""
+        from scipy.stats import spearmanr
+        from sklearn.metrics import roc_auc_score
+        rows = self._patient_features(self._scores(c, idx, self.detector)); out = {}
+        y = c.node_positive[idx]; ok = ~np.isnan(y)
+        if ok.sum() > 3 and 0 < y[ok].sum() < ok.sum():
+            out["node_pos_auc"] = roc_auc_score(y[ok], [r["max_s"] for r, o in zip(rows, ok) if o])
+        ratio = c.node_ratio[idx]; ok = ~np.isnan(ratio) & (ratio > 0)
+        if ok.sum() > 5:
+            out["ratio_spearman_pos"] = spearmanr(ratio[ok], [r["ratio"] for r, o in zip(rows, ok) if o])[0]
+        return out
 
 
 def cox_loss(risk: torch.Tensor, time: torch.Tensor, event: torch.Tensor) -> torch.Tensor:

@@ -26,10 +26,24 @@ class Cohort:
         self.bags, self.nodes = bags, nodes
         # Excel-derived features (stage, M, markers) exist only when the full patient table is given
         self.features = derive_features(self.patients) if "nodes_positive" in self.patients else None
+        # Pathologist's node counts: training labels only (weak supervision of the node detector), never model inputs
+        self.node_positive, self.node_ratio = self._node_labels()
         self.age = self.patients["age"].to_numpy(float)
         self.male = (self.patients["sex"] == "M").to_numpy(float)
         self.y = Surv.from_arrays(self.patients["os_event"].astype(bool).to_numpy(),
                                   self.patients["time_days"].to_numpy(float) / 365.25)
+
+    def _node_labels(self):
+        """1 / 0 / nan: does the patient have a positive node; and positive / examined nodes (nan when unknown)."""
+        pos = np.full(len(self.patients), np.nan); ratio = np.full(len(self.patients), np.nan)
+        if "nodes_positive" in self.patients:
+            n_pos, n_exam = self.patients["nodes_positive"].to_numpy(float), self.patients["nodes_examined"].to_numpy(float)
+            pos = np.where(np.isnan(n_pos), np.nan, (n_pos > 0).astype(float))
+            ratio = np.where((n_exam > 0) & ~np.isnan(n_pos), n_pos / np.where(n_exam > 0, n_exam, 1), np.nan)
+            if self.features is not None:  # no counts: fall back on the reported pN
+                pn = self.features["pn_group"].map({"N0": 0.0, "N1": 1.0, "N2": 1.0}).to_numpy(float)
+                pos = np.where(np.isnan(pos), pn, pos)
+        return pos, ratio
 
     def __len__(self) -> int:
         return len(self.bags)
