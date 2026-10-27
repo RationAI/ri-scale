@@ -173,6 +173,98 @@ class NodeRatioCox:
         return out
 
 
+class TileRatioCox:
+    """Tile-level version of ``NodeRatioCox``: how much tumour does each node contain?
+
+    A linear detector scores every tile; a patient is scored by the mean of its ``k`` highest tile logits, so a few tumour tiles
+    among thousands of benign ones decide, and it is trained with the patient-level "has a positive node" label only. A node counts
+    as positive when at least ``min_tiles`` of its tiles are tumour-like (about 0.13 mm2 for 8 tiles), which gives the lymph-node
+    ratio, the tumour area and the largest tumour fraction of a node. They go into a ridge Cox model with age and sex; scores of the
+    training patients come from inner cross-fitting.
+    """
+
+    TILE_MM2 = 0.0164
+    FEATURES: ClassVar[dict[str, list[str]]] = {
+        "tile_ratio": ["ratio", "topk"],
+        "tile_burden": ["n_pos", "log_area", "topk", "log_n"],
+        "tile_full": ["ratio", "n_pos", "log_area", "topk", "max_frac", "log_n"],
+    }
+
+    def __init__(self, features: str = "tile_full", k: int = 64, l2: float = 1e-2, steps: int = 150, refresh: int = 10,
+                 inner_folds: int = 3, alpha: float = 1.0, min_tiles: int = 8) -> None:
+        self.features, self.k, self.l2, self.steps, self.refresh = features, k, l2, steps, refresh
+        self.inner_folds, self.alpha, self.min_tiles = inner_folds, alpha, min_tiles
+
+    def _tile_logits(self, c, patient, w, b):
+        s, e = c.tile_range[patient]
+        return c.tiles.X[s:e].float() @ w + b
+
+    def _fit_detector(self, c, idx):
+        dev = c.tiles.device; y = c.node_positive[idx]; keep = np.flatnonzero(~np.isnan(y))
+        patients = [int(idx[i]) for i in keep]; target = torch.as_tensor(y[keep], dtype=torch.float32, device=dev)
+        d = c.tiles.X.shape[1]; w = torch.zeros(d, device=dev, requires_grad=True); b = torch.zeros(1, device=dev, requires_grad=True)
+        opt = torch.optim.Adam([w, b], lr=0.05)
+        sel = None
+        for step in range(self.steps):
+            if step % self.refresh == 0:   # the k highest tiles of every patient under the current detector
+                with torch.no_grad():
+                    sel = [c.tile_range[p][0] + self._tile_logits(c, p, w, b).topk(min(self.k, c.tile_range[p][1] - c.tile_range[p][0])).indices
+                           for p in patients]
+            owner = torch.cat([torch.full((len(t),), j, device=dev) for j, t in enumerate(sel)]); flat = torch.cat(sel)
+            vals = c.tiles.X[flat].float() @ w + b
+            logit = torch.zeros(len(patients), device=dev).index_add_(0, owner, vals) / torch.bincount(owner, minlength=len(patients))
+            opt.zero_grad()
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(logit, target) + self.l2 * (w ** 2).sum()
+            loss.backward(); opt.step()
+        return w.detach(), b.detach()
+
+    @torch.no_grad()
+    def _patient_features(self, c, patient, detector):
+        w, b = detector; s, e = c.tile_range[patient]
+        logit = self._tile_logits(c, patient, w, b)
+        topk = logit.topk(min(self.k, len(logit))).values.mean().item()
+        soft, hard = torch.sigmoid(logit).cpu().numpy(), (logit > 0).cpu().numpy()
+        _, inv = np.unique(c.tiles.node[s:e], return_inverse=True)
+        tiles = np.bincount(inv); node_hard = np.bincount(inv, weights=hard); node_soft = np.bincount(inv, weights=soft)
+        n_pos = int((node_hard >= self.min_tiles).sum())
+        return {"topk": topk, "n_pos": n_pos, "ratio": n_pos / len(tiles), "log_area": np.log1p(soft.sum() * self.TILE_MM2),
+                "max_frac": float((node_soft / tiles).max()), "log_n": np.log(len(tiles))}
+
+    def _matrix(self, rows):
+        return np.array([[r[k] for k in self.FEATURES[self.features]] for r in rows])
+
+    def fit(self, c, idx):
+        from sklearn.model_selection import StratifiedKFold
+        y = np.nan_to_num(c.node_positive[idx], nan=0.0).astype(int); oof = [None] * len(idx)
+        for tr, te in StratifiedKFold(self.inner_folds, shuffle=True, random_state=0).split(np.zeros(len(idx)), y):
+            det = self._fit_detector(c, idx[tr])
+            for k in te: oof[k] = self._patient_features(c, int(idx[k]), det)
+        self.detector = self._fit_detector(c, idx)
+        x = np.column_stack([c.age[idx], c.male[idx], self._matrix(oof)])
+        self.xm, self.xs = x.mean(0), np.where(x.std(0) < 1e-8, 1.0, x.std(0))
+        self.model = CoxPHSurvivalAnalysis(alpha=self.alpha).fit((x - self.xm) / self.xs, c.y[idx])
+        return self
+
+    def _rows(self, c, idx):
+        return [self._patient_features(c, int(i), self.detector) for i in idx]
+
+    def risk(self, c, idx):
+        x = np.column_stack([c.age[idx], c.male[idx], self._matrix(self._rows(c, idx))])
+        return self.model.predict((x - self.xm) / self.xs)
+
+    def extra_metrics(self, c, idx):
+        from scipy.stats import spearmanr
+        from sklearn.metrics import roc_auc_score
+        rows = self._rows(c, idx); out = {}
+        y = c.node_positive[idx]; ok = ~np.isnan(y)
+        if ok.sum() > 3 and 0 < y[ok].sum() < ok.sum():
+            out["node_pos_auc"] = roc_auc_score(y[ok], [r["topk"] for r, o in zip(rows, ok) if o])
+        ratio = c.node_ratio[idx]; ok = ~np.isnan(ratio) & (ratio > 0)
+        if ok.sum() > 5:
+            out["ratio_spearman_pos"] = spearmanr(ratio[ok], [r["ratio"] for r, o in zip(rows, ok) if o])[0]
+        return out
+
+
 def cox_loss(risk: torch.Tensor, time: torch.Tensor, event: torch.Tensor) -> torch.Tensor:
     """Negative Cox partial log-likelihood (Breslow ties), full batch."""
     order = torch.argsort(time, descending=True)

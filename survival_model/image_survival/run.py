@@ -27,6 +27,7 @@ from image_survival.models import (
     ExcelCox,
     NodeRatioCox,
     PooledCox,
+    TileRatioCox,
 )
 
 MODELS = {
@@ -40,12 +41,17 @@ MODELS = {
     "ratio": lambda: NodeRatioCox("ratio"),
     "ratio_full": lambda: NodeRatioCox("ratio_full"),
     "burden": lambda: NodeRatioCox("burden"),
+    # tile-level detector (needs --tiles): tumour burden inside the nodes
+    "tile_ratio": lambda: TileRatioCox("tile_ratio"),
+    "tile_burden": lambda: TileRatioCox("tile_burden"),
+    "tile_full": lambda: TileRatioCox("tile_full"),
     # need the Excel-derived features (full patient table): the staging the image models are meant to replace
     "excel_tnm": lambda: ExcelCox(TNM),
     "excel_full": lambda: ExcelCox(FULL),
     "pooled_pca8_tnm": lambda: PooledCox(n_components=8, tnm=True),
 }
 NEEDS_EXCEL = {"excel_tnm", "excel_full", "pooled_pca8_tnm"}
+NEEDS_TILES = {"tile_ratio", "tile_burden", "tile_full"}
 
 
 def score(y_train, y_test, risk, horizons=(3.0, 5.0)) -> dict:
@@ -66,13 +72,17 @@ def main() -> None:
     ap.add_argument("--nodes", required=True); ap.add_argument("--patients", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--models", default=",".join(MODELS)); ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--repeats", type=int, default=5); ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--tiles", default=None, help="tiles.npz of build_tiles.py, for the tile_* models")
     ap.add_argument("--embedding", default="core", choices=["core", "both"], help="node core tiles, or core + margin tiles")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
-    cohort = Cohort(a.nodes, a.patients, embedding=a.embedding)
+    cohort = Cohort(a.nodes, a.patients, embedding=a.embedding, tiles_path=a.tiles)
     print(json.dumps(cohort.summary()), flush=True)
     names = a.models.split(",")
+    if cohort.tiles is None:
+        print("no --tiles, skipping", sorted(NEEDS_TILES & set(names)))
+        names = [n for n in names if n not in NEEDS_TILES]
     if cohort.features is None:
         print("no Excel-derived features in the patient table, skipping", sorted(NEEDS_EXCEL & set(names)))
         names = [n for n in names if n not in NEEDS_EXCEL]

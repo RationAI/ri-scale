@@ -74,7 +74,21 @@ segmentation project) plus age and sex, without the stage, TNM or markers of the
    fold by fold. Hyper-parameters are fixed, not tuned on the folds. With ~200 patients and ~90 deaths a single split
    says little, hence the repeats.
 
-`scripts/synthetic_nodes.py` writes synthetic embeddings with a known signal to test steps 2-3 without patient data.
+   The `ratio`, `ratio_full` and `burden` models handle the lymph-node ratio: a node detector scores every node, trained
+   only with the patient-level "has a positive node" label (a patient is positive when any node is, so no node labels are
+   needed). The expected number of positive nodes, their share of all nodes, the highest node score and the node count then
+   go into a ridge Cox model with age and sex. The pathologist's counts are training labels only, never inputs, and the
+   detector scores of the training patients come from inner cross-fitting so the Cox model never sees in-sample output.
+   `node_pos_auc` and `ratio_spearman_pos` in `fold_metrics.csv` show how well the image-derived ratio matches the counts.
+
+   The `tile_ratio`, `tile_burden` and `tile_full` models go one level deeper (`--tiles`, built by
+   `python -m image_survival.build_tiles`, which projects the tile embeddings to 128 dimensions with an unsupervised PCA):
+   a linear detector scores every tile, a patient is scored by the mean of its highest tiles, and a node counts as
+   positive when enough of its tiles are tumour-like. This gives the ratio, the tumour area and the largest tumour fraction
+   of a node, instead of one average embedding per node.
+
+`scripts/synthetic_nodes.py` and `scripts/synthetic_tiles.py` write synthetic embeddings with a known signal to test steps 2-3
+without patient data.
 
 ## Preprocessing
 
