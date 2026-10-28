@@ -30,7 +30,7 @@ ap.add_argument("--per-type", type=int, default=6, help="slides per slide type i
 ap.add_argument("--stats-slides", type=int, default=30, help="slides per type sampled for the feature statistics and the PCA")
 ap.add_argument("--tiles-per-slide", type=int, default=1000); ap.add_argument("--map-size", type=int, default=300)
 ap.add_argument("--seed", type=int, default=0)
-ap.add_argument("--viewer-url", default="http://127.0.0.1:9000/?slides=MMCI/{slide}.mrxs", help="link of a slide in xOpat ({slide} = slide id); empty = no links")
+ap.add_argument("--viewer-url", default="http://127.0.0.1:9000/?slides=MMCI/{slide}.mrxs&overlay_opt=/overlay-data/overlays/{slide}.json", help="link of a slide in xOpat ({slide} = slide id); empty = no links")
 a = ap.parse_args()
 rng = np.random.default_rng(a.seed)
 e = html.escape
@@ -233,7 +233,7 @@ page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name
 <p>PCA over the sampled tiles (2560-d, centred): the first three components explain {evr[:3].sum():.0%} of the variance (PC1 {evr[0]:.0%}, PC2 {evr[1]:.0%}, PC3 {evr[2]:.0%}). They colour the maps below.</p>
 <h3>Tile distribution along PC1 and PC2, by slide type</h3><div class="gal" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">{dens}</div>
 <h2>4. Features over individual slides</h2>
-<p>Each card shows two maps of the same slide, one pixel per tile. <b>Left:</b> PC1-3 of the 2560-d feature as red, green and blue, so tissue with similar features has a similar colour (colours are comparable between slides, the PCA is shared). <b>Right:</b> the norm of the class token on a blue scale (dark = high). Slides are spread over the size range of each type ({a.per_type} per type). Grey = no tile (background). <b>Click a slide name to open it in xOpat</b> (needs the viewer pod and the ssh tunnel).</p>
+<p>Each card shows two maps of the same slide, one pixel per tile. <b>Left:</b> PC1-3 of the 2560-d feature as red, green and blue, so tissue with similar features has a similar colour (colours are comparable between slides, the PCA is shared). <b>Right:</b> the norm of the class token on a blue scale (dark = high). Slides are spread over the size range of each type ({a.per_type} per type). Grey = no tile (background). <b>Click a slide name to open it in xOpat 3</b> (needs the viewer pod and the ssh tunnel); the predicted lymph nodes are shown on the slide where they exist.</p>
 <div class="gal">{cards}</div>
 <p class="muted">Built in {time.time() - t0:.0f} s by reports/feature_report.py.</p></main></body></html>"""
 open(a.out, "w", encoding="utf-8").write(page)

@@ -22,7 +22,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--pred", required=True); ap.add_argument("--out", required=True)
 ap.add_argument("--per-type", type=int, default=4); ap.add_argument("--map-size", type=int, default=300)
 ap.add_argument("--features-dir", default="", help="shown in the text only")
-ap.add_argument("--viewer-url", default="http://127.0.0.1:9000/?slides=MMCI/{slide}.mrxs", help="link of a slide in xOpat ({slide} = slide id); empty = no links")
+ap.add_argument("--viewer-url", default="http://127.0.0.1:9000/?slides=MMCI/{slide}.mrxs&overlay=/overlay-data/overlays/{slide}.tissue.json&overlay_opt=/overlay-data/overlays/{slide}.json", help="link of a slide in xOpat ({slide} = slide id); empty = no links")
 a = ap.parse_args()
 e = html.escape
 t0 = time.time()
@@ -155,7 +155,7 @@ page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name
 <div class="tw"><table><thead><tr><th>Type</th><th class="n">Slides</th><th class="n">Tiles</th>{''.join(f'<th class="n">{e(c)}</th>' for c in CLASSES)}</tr></thead><tbody>{tab}</tbody></table></div>
 <p class="muted">Tile-weighted means over the slides of each type; darker cells = larger share.</p>
 <h2>2. Class maps of individual slides</h2>
-<p><b>Left:</b> predicted class of each tile. <b>Right:</b> confidence (probability of the chosen class) on a blue scale, dark = confident. Up to {a.per_type} slides per type, spread over the size range. Grey = no tile. <b>Click a slide name to open it in xOpat</b> (needs the viewer pod and the ssh tunnel); the tissue regions of these slides are served as <code>overlays/&lt;slide&gt;.tissue.json</code>.</p>
+<p><b>Left:</b> predicted class of each tile. <b>Right:</b> confidence (probability of the chosen class) on a blue scale, dark = confident. Up to {a.per_type} slides per type, spread over the size range. Grey = no tile. <b>Click a slide name to open it in xOpat 3</b> (needs the viewer pod and the ssh tunnel): it opens with the tissue-class regions and, where available, the predicted lymph nodes as overlays (colours as in the legend).</p>
 {legend}
 <div class="gal">{cards}</div>
 <p class="muted">Built in {time.time() - t0:.0f} s by reports/prediction_report.py.</p></main></body></html>"""
