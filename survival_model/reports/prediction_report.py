@@ -14,6 +14,7 @@ import json
 import os
 import re
 import time
+import urllib.parse
 
 import numpy as np
 from PIL import Image
@@ -22,7 +23,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--pred", required=True); ap.add_argument("--out", required=True)
 ap.add_argument("--per-type", type=int, default=4); ap.add_argument("--map-size", type=int, default=300)
 ap.add_argument("--features-dir", default="", help="shown in the text only")
-ap.add_argument("--viewer-url", default="http://127.0.0.1:9000/?slides=MMCI/{slide}.mrxs&overlay=/overlay-data/overlays/{slide}.tissue.json&overlay_opt=/overlay-data/overlays/{slide}.json", help="link of a slide in xOpat ({slide} = slide id); empty = no links")
+ap.add_argument("--viewer-base", default="http://127.0.0.1:9000", help="address of xOpat; empty = no links")
+ap.add_argument("--rasters-dir", default="", help="folder with the image overlays <slide>.tissue.png / <slide>.nodes.png: a slide link carries the ones that exist")
 a = ap.parse_args()
 e = html.escape
 t0 = time.time()
@@ -132,10 +134,22 @@ vmax = max(v.max() for v in comp.values())
 tab = "".join(f"<tr><td>{e(t)}</td><td class='n'>{sum(r['type'] == t for r in ok.values())}</td><td class='n'>{sum(r['tiles'] for r in ok.values() if r['type'] == t):,}</td>"
               + "".join(f"<td class='n' style='{shade(v, vmax)}'>{v:.0%}</td>" for v in comp[t]) + "</tr>" for t in types)
 conf_all = [r["mean_confidence"] for r in ok.values()]
+def viewer_link(slide):
+    """xOpat session: the slide as background, every existing overlay image as an identity-shader layer on top of it."""
+    data, shaders = [f"MMCI/{slide}.mrxs"], {}
+    for kind, title in (("tissue", "Tissue classes"), ("nodes", "Lymph nodes")):
+        if a.rasters_dir and os.path.exists(f"{a.rasters_dir}/{slide}.{kind}.png"):
+            data.append({"dataID": f"/overlay-data/rasters/{slide}.{kind}.png", "protocol": "plain_image", "imageSmoothingEnabled": False})
+            shaders[kind] = {"name": title, "type": "identity", "fixed": True, "visible": 1, "dataReferences": [len(data) - 1]}
+    session = {"params": {"sessionName": slide}, "data": data, "background": [{"dataReference": 0}],
+               "visualizations": [{"name": "Overlays", "shaders": shaders}] if shaders else []}
+    return f"{a.viewer_base}/?visualization=" + urllib.parse.quote(json.dumps(session, separators=(",", ":")))
+
+
 def link(name):
-    if not a.viewer_url:
+    if not a.viewer_base:
         return e(name)
-    return f"<a href='{e(a.viewer_url.format(slide=name), quote=True)}' target='_blank' rel='noopener' title='open in xOpat (needs the tunnel)'>{e(name)}</a>"
+    return f"<a href='{e(viewer_link(name), quote=True)}' target='_blank' rel='noopener' title='open in xOpat (needs the tunnel)'>{e(name)}</a>"
 
 
 cards = "".join(
@@ -155,7 +169,7 @@ page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name
 <div class="tw"><table><thead><tr><th>Type</th><th class="n">Slides</th><th class="n">Tiles</th>{''.join(f'<th class="n">{e(c)}</th>' for c in CLASSES)}</tr></thead><tbody>{tab}</tbody></table></div>
 <p class="muted">Tile-weighted means over the slides of each type; darker cells = larger share.</p>
 <h2>2. Class maps of individual slides</h2>
-<p><b>Left:</b> predicted class of each tile. <b>Right:</b> confidence (probability of the chosen class) on a blue scale, dark = confident. Up to {a.per_type} slides per type, spread over the size range. Grey = no tile. <b>Click a slide name to open it in xOpat 3</b> (needs the viewer pod and the ssh tunnel): it opens with the tissue-class regions and, where available, the predicted lymph nodes as overlays (colours as in the legend).</p>
+<p><b>Left:</b> predicted class of each tile. <b>Right:</b> confidence (probability of the chosen class) on a blue scale, dark = confident. Up to {a.per_type} slides per type, spread over the size range. Grey = no tile. <b>Click a slide name to open it in xOpat 3</b> (needs the viewer pod and the ssh tunnel): it opens with the tissue classes (colours as in the legend) and the predicted lymph nodes as image layers, each with its own visibility and opacity in the viewer.</p>
 {legend}
 <div class="gal">{cards}</div>
 <p class="muted">Built in {time.time() - t0:.0f} s by reports/prediction_report.py.</p></main></body></html>"""

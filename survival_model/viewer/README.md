@@ -20,3 +20,11 @@ bash ~/viewer/start.sh               # starts the tile service (8080) and xOpat 
 ssh -N -J musica -i ~/.ssh/id_musica -p <PORT> -L 127.0.0.1:9000:127.0.0.1:9000 -L 127.0.0.1:8080:127.0.0.1:8080 jp50463@<NODE>
 http://127.0.0.1:9000/?slides=MMCI/<slide>.mrxs&overlay=/overlay-data/overlays/<slide>.json
 ```
+
+## Image overlays (preferred over the GeoJSON overlays)
+
+`scripts/make_overlay_images.py` writes one RGBA PNG per slide that covers the slide's extent: `<slide>.tissue.png` (tissue classes, 4 x 4 pixels
+per 128 um tile) and `<slide>.nodes.png` (predicted lymph nodes). Put them into `xopat3/overlay-data/rasters/`. xOpat shows them as layers of a
+session (slide as background, each image a visualization shader of type `identity`, protocol `plain_image`, `imageSmoothingEnabled: false`);
+`reports/*.py --rasters-dir` builds such `?visualization=<json>` links. Each layer has its own visibility and opacity in the viewer.
+The GeoJSON route (`overlay-url` plugin, `scripts/make_overlays.py`) still works but is no longer used by the reports.
