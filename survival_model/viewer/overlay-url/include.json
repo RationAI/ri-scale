@@ -1,0 +1,12 @@
+{
+    "id": "overlay_url",
+    "name": "Overlay from URL",
+    "author": "RationAI survival project",
+    "version": "1.0.0",
+    "description": "Imports GeoJSON overlays given in the page URL (?overlay=<url>, repeatable) once the slide is open.",
+    "icon": null,
+    "includes": ["overlay-url.js"],
+    "modules": ["annotations"],
+    "permaLoad": true,
+    "hidden": true
+}
