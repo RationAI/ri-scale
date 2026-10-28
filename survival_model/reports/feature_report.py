@@ -30,6 +30,7 @@ ap.add_argument("--per-type", type=int, default=6, help="slides per slide type i
 ap.add_argument("--stats-slides", type=int, default=30, help="slides per type sampled for the feature statistics and the PCA")
 ap.add_argument("--tiles-per-slide", type=int, default=1000); ap.add_argument("--map-size", type=int, default=300)
 ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--viewer-url", default="http://127.0.0.1:9000/?slides=MMCI/{slide}.mrxs", help="link of a slide in xOpat ({slide} = slide id); empty = no links")
 a = ap.parse_args()
 rng = np.random.default_rng(a.seed)
 e = html.escape
@@ -197,8 +198,14 @@ tab_rows = "".join(f"<tr><td>{e(t)}</td><td class='n'>{len(by_type[t]):,}</td><t
 dens = "".join(f"<div><div class='muted'>{e(t)} ({int((sample_type == t).sum()):,} tiles)</div><img alt='PC1 vs PC2 density, {e(t)}' style='width:100%;image-rendering:pixelated;border-radius:6px' "
                f"src='data:image/png;base64,{density_png(proj[sample_type == t][:, :2], (np.percentile(proj[:, 0], 0.5), np.percentile(proj[:, 0], 99.5)), (np.percentile(proj[:, 1], 0.5), np.percentile(proj[:, 1], 99.5)))}'></div>"
                for t in types if (sample_type == t).sum() > 50)
+def link(name):
+    if not a.viewer_url:
+        return e(name)
+    return f"<a href='{e(a.viewer_url.format(slide=name), quote=True)}' target='_blank' rel='noopener' title='open in xOpat (needs the tunnel)'>{e(name)}</a>"
+
+
 cards = "".join(
-    f"<div class='slide'><b>{e(g['r']['name'])}</b><div class='pair'><img alt='PCA colour map' src='data:image/png;base64,{g['pca']}'><img alt='feature norm map' src='data:image/png;base64,{g['norm']}'></div>"
+    f"<div class='slide'><b>{link(g['r']['name'])}</b><div class='pair'><img alt='PCA colour map' src='data:image/png;base64,{g['pca']}'><img alt='feature norm map' src='data:image/png;base64,{g['norm']}'></div>"
     f"<small>type {e(g['r']['type'])} | {g['r']['n']:,} tiles | grid {g['grid'][0]} x {g['grid'][1]} | tissue about {g['area']:.0f} mm&sup2; | mean |feats| {g['norm_mean']:.1f}</small></div>" for g in gallery)
 page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Virchow2 tile features of the MMCI slides</title><style>{CSS}</style></head><body><main>
 <h1>Virchow2 tile features of the MMCI slides</h1>
@@ -226,7 +233,7 @@ page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name
 <p>PCA over the sampled tiles (2560-d, centred): the first three components explain {evr[:3].sum():.0%} of the variance (PC1 {evr[0]:.0%}, PC2 {evr[1]:.0%}, PC3 {evr[2]:.0%}). They colour the maps below.</p>
 <h3>Tile distribution along PC1 and PC2, by slide type</h3><div class="gal" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">{dens}</div>
 <h2>4. Features over individual slides</h2>
-<p>Each card shows two maps of the same slide, one pixel per tile. <b>Left:</b> PC1-3 of the 2560-d feature as red, green and blue, so tissue with similar features has a similar colour (colours are comparable between slides, the PCA is shared). <b>Right:</b> the norm of the class token on a blue scale (dark = high). Slides are spread over the size range of each type ({a.per_type} per type). Grey = no tile (background).</p>
+<p>Each card shows two maps of the same slide, one pixel per tile. <b>Left:</b> PC1-3 of the 2560-d feature as red, green and blue, so tissue with similar features has a similar colour (colours are comparable between slides, the PCA is shared). <b>Right:</b> the norm of the class token on a blue scale (dark = high). Slides are spread over the size range of each type ({a.per_type} per type). Grey = no tile (background). <b>Click a slide name to open it in xOpat</b> (needs the viewer pod and the ssh tunnel).</p>
 <div class="gal">{cards}</div>
 <p class="muted">Built in {time.time() - t0:.0f} s by reports/feature_report.py.</p></main></body></html>"""
 open(a.out, "w", encoding="utf-8").write(page)
