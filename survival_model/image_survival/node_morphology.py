@@ -54,7 +54,7 @@ def profile_rows(geojson_path, with_outline=False):
         fc = json.load(f)
     mpp = float(fc.get("mpp") or 0) or 0.2428
     rows = []
-    for ft in fc["features"]:
+    for fi, ft in enumerate(fc["features"]):
         g = ft["geometry"]
         parts = [g["coordinates"]] if g["type"] == "Polygon" else g["coordinates"]
         pts = [np.asarray(p[0], np.float32) for p in parts if p and len(p[0]) >= 3]
@@ -66,7 +66,8 @@ def profile_rows(geojson_path, with_outline=False):
         hull_area = float(cv2.contourArea(hull))
         (_, _), (w, h), _ = cv2.minAreaRect(hull)
         rows.append({"area": area_px * mpp ** 2 / 1e6, "solidity": min(1.0, area_px / hull_area) if hull_area > 0 else np.nan,
-                     "elong": min(w, h) / max(w, h) if max(w, h) > 0 else np.nan, "prob": float(ft["properties"].get("mean_prob", np.nan))})
+                     "elong": min(w, h) / max(w, h) if max(w, h) > 0 else np.nan, "prob": float(ft["properties"].get("mean_prob", np.nan)),
+                     "feature_idx": fi})
         if with_outline:
             rows[-1]["outline_um"] = [np.asarray(q[0], np.float32) * mpp for q in parts if q and len(q[0]) >= 3]
     return rows

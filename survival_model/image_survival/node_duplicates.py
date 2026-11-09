@@ -70,8 +70,18 @@ def load(a):
             if not os.path.exists(path):
                 continue
             for k, r in enumerate(profile_rows(path, with_outline=True)):
-                rows.append({"patient_id": patient_of[case], "slide": slide, "idx": k, **r})
+                rows.append({"patient_id": patient_of[case], "slide": slide, "slide_idx": sorted(slides).index(slide), "idx": k, **r})
     return rows
+
+
+def features_of_kept(rows, pid, slide, rep):
+    """node_morphology features per patient from the kept profiles (indices ``rep``) only."""
+    feats = []
+    for p in sorted(set(pid)):
+        sl = sorted(set(slide[pid == p])); mine = [i for i in rep if pid[i] == p]
+        per = [(sum(slide[i] == s for i in mine), sum(rows[i]["area"] for i in mine if slide[i] == s)) for s in sl]
+        feats.append(patient_features(p, per, [rows[i] for i in mine]))
+    return pd.DataFrame(feats)
 
 
 def bin_of(ratio):
@@ -160,12 +170,8 @@ def main():
         os.makedirs(f"{a.out}/dedup_{level}", exist_ok=True)
         pd.DataFrame({"patient_id": pid, "slide": slide, "profile": [r["idx"] for r in rows], "group": group, "group_size": [gsize[g] for g in group],
                       "kept": [i in repset for i in range(n)]}).to_csv(f"{a.out}/node_groups_{level}.csv", index=False)
-        feats = []
-        for p in sorted(set(pid)):
-            sl = sorted(set(slide[pid == p])); mine = [i for i in rep if pid[i] == p]
-            per = [(sum(slide[i] == s for i in mine), sum(rows[i]["area"] for i in mine if slide[i] == s)) for s in sl]
-            feats.append(patient_features(p, per, [rows[i] for i in mine]))
-        F = pd.DataFrame(feats); F.to_csv(f"{a.out}/dedup_{level}/features.csv", index=False)
+        feats = features_of_kept(rows, pid, slide, rep)
+        F = feats; F.to_csv(f"{a.out}/dedup_{level}/features.csv", index=False)
         o = old.reindex(F.patient_id)
         lines += [f"  features with one profile per node -> {a.out}/dedup_{level}/features.csv",
                   f"  per patient (median): nodes {o.nodes_total.median():.0f} -> {F.nodes_total.median():.0f}; mean profile area {o.area_mean_mm2.median():.2f} -> {F.area_mean_mm2.median():.2f} mm2"]
