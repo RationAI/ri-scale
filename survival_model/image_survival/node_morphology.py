@@ -48,8 +48,8 @@ GROUPS = {
 
 # ── extraction ────────────────────────────────────────────────────────────────────────────────────────
 
-def profile_rows(geojson_path):
-    """One row per predicted node profile of a slide: area (mm2), solidity, elongation, confidence."""
+def profile_rows(geojson_path, with_outline=False):
+    """One row per predicted node profile of a slide: area (mm2), solidity, elongation, confidence (and the outline in um if asked)."""
     with open(geojson_path) as f:
         fc = json.load(f)
     mpp = float(fc.get("mpp") or 0) or 0.2428
@@ -67,7 +67,26 @@ def profile_rows(geojson_path):
         (_, _), (w, h), _ = cv2.minAreaRect(hull)
         rows.append({"area": area_px * mpp ** 2 / 1e6, "solidity": min(1.0, area_px / hull_area) if hull_area > 0 else np.nan,
                      "elong": min(w, h) / max(w, h) if max(w, h) > 0 else np.nan, "prob": float(ft["properties"].get("mean_prob", np.nan))})
+        if with_outline:
+            rows[-1]["outline_um"] = [np.asarray(q[0], np.float32) * mpp for q in parts if q and len(q[0]) >= 3]
     return rows
+
+
+def patient_features(patient_id, per_slide, profiles):
+    """Per patient measurements from the node profiles; per_slide = [(profiles on the slide, summed area)]."""
+    area = np.array([r["area"] for r in profiles]) if profiles else np.array([np.nan])
+    counts = np.array([c for c, _ in per_slide])
+    return {
+        "patient_id": patient_id, "n_slides": len(per_slide), "nodes_total": int(counts.sum()),
+        "nodes_per_slide_median": float(np.median(counts)), "nodes_per_slide_max": int(counts.max()),
+        "area_total_mm2": float(np.nansum(area)) if profiles else 0.0, "area_per_slide_mm2": float(np.mean([s for _, s in per_slide])),
+        "area_mean_mm2": float(np.nanmean(area)), "area_median_mm2": float(np.nanmedian(area)), "area_max_mm2": float(np.nanmax(area)),
+        "area_sd_log": float(np.nanstd(np.log(np.clip(area, 1e-3, None)))) if len(profiles) > 1 else np.nan,
+        "small_fraction": float(np.mean(area < 1.0)) if profiles else np.nan,
+        "solidity_mean": float(np.nanmean([r["solidity"] for r in profiles])) if profiles else np.nan,
+        "elongation_mean": float(np.nanmean([r["elong"] for r in profiles])) if profiles else np.nan,
+        "prob_mean": float(np.nanmean([r["prob"] for r in profiles])) if profiles else np.nan,
+    }
 
 
 def extract(a):
@@ -87,19 +106,7 @@ def extract(a):
             profiles += rows
         if not per_slide:
             continue
-        area = np.array([r["area"] for r in profiles]) if profiles else np.array([np.nan])
-        counts = np.array([c for c, _ in per_slide])
-        out.append({
-            "patient_id": patient_of[case], "n_slides": len(per_slide), "nodes_total": int(counts.sum()),
-            "nodes_per_slide_median": float(np.median(counts)), "nodes_per_slide_max": int(counts.max()),
-            "area_total_mm2": float(np.nansum(area)) if profiles else 0.0, "area_per_slide_mm2": float(np.mean([s for _, s in per_slide])),
-            "area_mean_mm2": float(np.nanmean(area)), "area_median_mm2": float(np.nanmedian(area)), "area_max_mm2": float(np.nanmax(area)),
-            "area_sd_log": float(np.nanstd(np.log(np.clip(area, 1e-3, None)))) if len(profiles) > 1 else np.nan,
-            "small_fraction": float(np.mean(area < 1.0)) if profiles else np.nan,
-            "solidity_mean": float(np.nanmean([r["solidity"] for r in profiles])) if profiles else np.nan,
-            "elongation_mean": float(np.nanmean([r["elong"] for r in profiles])) if profiles else np.nan,
-            "prob_mean": float(np.nanmean([r["prob"] for r in profiles])) if profiles else np.nan,
-        })
+        out.append(patient_features(patient_of[case], per_slide, profiles))
     df = pd.DataFrame(out)
     os.makedirs(a.out, exist_ok=True)
     df.to_csv(f"{a.out}/features.csv", index=False)
