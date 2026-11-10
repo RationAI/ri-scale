@@ -49,11 +49,6 @@ export default function BrowsePage() {
     (async () => {
       try {
         const loc = await resolveRemotePath(params.path);
-        if (loc.kind === "slide") {
-          // A slide is a file, not a browsable page - nothing to render here.
-          if (!cancelled) setNotFound(true);
-          return;
-        }
         const ents = await listEntries(loc);
         if (!cancelled) {
           setLocation(loc);

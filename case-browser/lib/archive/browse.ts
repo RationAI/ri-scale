@@ -30,7 +30,6 @@ export interface FileEntry {
 
 interface RemoteCase {
   id: string;
-  local_id: string;
   slides: string[];
 }
 
@@ -38,15 +37,15 @@ function orgPrefixOf(id: string): string {
   return id.split(".")[0];
 }
 
-/** This app only ever exposes datasets under the `ratio` org - the archive
- * also has `mmci.mican`, which users of this app must not be able to reach
- * at all. Matched on just the first dot-segment (not the full `ratio.link`
- * site prefix) so any other `ratio.*` sub-dataset stays included too.
+/** This app only exposes datasets under these orgs - the archive also has
+ * `mmci.mican`, which users of this app must not be able to reach at all.
+ * Matched on just the first dot-segment (not the full site prefix) so any
+ * other `ratio.*` / `synth.*` sub-dataset stays included too.
  * Filtered right here, at the one place all case data enters the app, so
  * it's a real access restriction (an unknown/rejected case id, same as any
  * other invalid path) rather than just something hidden in the UI.
  */
-const ALLOWED_ORG = "ratio";
+const ALLOWED_ORGS = new Set(["ratio", "synth"]);
 
 const CACHE_TTL_MS = 60_000;
 let casesCache: { data: RemoteCase[]; fetchedAt: number } | null = null;
@@ -61,33 +60,35 @@ async function listCases(): Promise<RemoteCase[]> {
     throw new Error(`Failed to list cases from WSI archive (${res.status})`);
   }
   const all = (await res.json()) as RemoteCase[];
-  const data = all.filter((c) => orgPrefixOf(c.id) === ALLOWED_ORG);
+  const data = all.filter((c) => ALLOWED_ORGS.has(orgPrefixOf(c.id)));
   casesCache = { data, fetchedAt: Date.now() };
   return data;
 }
 
+/** A cohort is an `<org>.<site>` dataset, e.g. `ratio.link` or
+ * `synth.link`. */
+function cohortOf(caseId: string): string {
+  return caseId.split(".").slice(0, 2).join(".");
+}
+
 export type RemoteLocation =
   | { kind: "root" }
-  | { kind: "case"; caseId: string; slides: string[] }
-  | { kind: "slide"; caseId: string; slideId: string };
+  | { kind: "cohort"; cohort: string; slides: string[] };
 
 export function relativePathOf(location: RemoteLocation): string {
   switch (location.kind) {
     case "root":
       return "";
-    case "case":
-      return location.caseId;
-    case "slide":
-      return `${location.caseId}/${location.slideId}`;
+    case "cohort":
+      return location.cohort;
   }
 }
 
 /**
- * Resolves a case/slide path against the real (already site-filtered) case
- * list from the archive, rejecting anything that doesn't correspond to an
- * actual known case or slide - so a request can't smuggle an arbitrary
- * slide_id (including one from the excluded `mmci.mican` dataset) through
- * to the archive by way of a path that doesn't actually resolve.
+ * Resolves a cohort path against the real (already org-filtered) case list
+ * from the archive, rejecting anything that isn't an actual known cohort.
+ * Cases are an archive-side grouping with one slide each, so they are
+ * flattened away: a cohort lists its slides directly.
  */
 export async function resolveRemotePath(
   segments: string | string[] | undefined
@@ -102,44 +103,35 @@ export async function resolveRemotePath(
   }
 
   if (parts.length === 0) return { kind: "root" };
-  if (parts.length > 2) throw new PathAccessError();
+  if (parts.length > 1) throw new PathAccessError();
 
-  const cases = await listCases();
-  const caseId = parts[0];
-  const matchedCase = cases.find((c) => c.id === caseId);
-  if (!matchedCase) throw new PathAccessError();
-  if (parts.length === 1) {
-    return { kind: "case", caseId, slides: matchedCase.slides };
-  }
-
-  const slideId = parts[1];
-  if (!matchedCase.slides.includes(slideId)) throw new PathAccessError();
-  return { kind: "slide", caseId, slideId };
+  const cohort = parts[0];
+  const cases = (await listCases()).filter((c) => cohortOf(c.id) === cohort);
+  if (cases.length === 0) throw new PathAccessError();
+  return {
+    kind: "cohort",
+    cohort,
+    slides: cases.flatMap((c) => c.slides),
+  };
 }
 
 export async function listEntries(
   location: RemoteLocation
 ): Promise<FileEntry[]> {
-  const cases = await listCases();
-
   switch (location.kind) {
     case "root": {
-      return cases
-        .map((c) => ({
-          name: c.local_id || c.id,
-          path: c.id,
-          isDirectory: true,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+      const cases = await listCases();
+      return [...new Set(cases.map((c) => cohortOf(c.id)))]
+        .sort((a, b) => a.localeCompare(b))
+        .map((cohort) => ({ name: cohort, path: cohort, isDirectory: true }));
     }
-    case "case": {
-      return location.slides.map((slideId) => ({
-        name: slideId,
-        path: `${location.caseId}/${slideId}`,
-        isDirectory: false,
-      }));
-    }
-    case "slide":
-      throw new Error("A slide is a file, not a folder - nothing to list");
+    case "cohort":
+      return [...new Set(location.slides)]
+        .sort((a, b) => a.localeCompare(b))
+        .map((slideId) => ({
+          name: slideId,
+          path: `${location.cohort}/${slideId}`,
+          isDirectory: false,
+        }));
   }
 }
