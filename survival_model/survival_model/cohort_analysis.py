@@ -43,7 +43,7 @@ STRUCTURAL = [{"pn_group", "nodes_positive"}, {"pn_group", "ln_ratio"}, {"nodes_
 REFERENCE = {"stage_group": "0-I", "pt_group": "T0-2", "pn_group": "N0", "m_group": "M0", "grade_group": "low", "sex": "F",
              "location": "left", "mmr": "pMMR", "kras": "wt", "nras": "wt", "braf": "wt", "neoadjuvant": "no", "morphology_group": "adenocarcinoma", "age_band": "60-69"}
 OKABE = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#F0E442", "#000000"]
-MIN_LEVEL = 20
+MIN_LEVEL = 10   # levels with fewer patients are merged into 'other (rare)' (variables with two levels are never merged)
 
 
 # ── data ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -73,7 +73,8 @@ def prepare(patients: pd.DataFrame) -> pd.DataFrame:
     for col in CATEGORICAL:                                       # rare levels do not carry a cross-table
         if col in f:
             counts = f[col].value_counts()
-            f[col] = f[col].where(~f[col].isin(counts[counts < MIN_LEVEL].index) | f[col].isna(), "other (rare)")
+            if len(counts) > 2:
+                f[col] = f[col].where(~f[col].isin(counts[counts < MIN_LEVEL].index) | f[col].isna(), "other (rare)")
     keep_cat = [c for c in CATEGORICAL if c in f and f[c].nunique() >= 2]
     keep_num = [c for c in NUMERIC if c in f and f[c].nunique() >= 3]
     f.attrs["cat"], f.attrs["num"] = keep_cat, keep_num

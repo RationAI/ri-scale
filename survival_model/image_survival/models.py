@@ -55,11 +55,44 @@ class ClinicalCox:
         return self.model.predict((self._x(c, idx) - self.mean) / self.std)
 
 
-class PooledCox:
-    """Mean node embedding per patient -> PCA -> ridge Cox, optionally with the hand-made node numbers."""
+class AgeOnlyCox(ClinicalCox):
+    """Age alone: the floor of the floor, to see what sex adds."""
 
-    def __init__(self, n_components: int = 8, alpha: float = 10.0, hand: bool = False, tnm: bool = False) -> None:
-        self.n_components, self.alpha, self.hand, self.tnm = n_components, alpha, hand, tnm
+    def _x(self, c, idx):
+        return c.age[idx, None]
+
+
+class MorphCox:
+    """Only the node measurements of node_morphology.py (number, size, shape of the predicted masks); optionally with age and sex."""
+
+    def __init__(self, alpha: float = 10.0, clinical: bool = False) -> None:
+        self.alpha, self.clinical = alpha, clinical
+
+    def _x(self, c, idx):
+        from image_survival.node_morphology import FEATURES
+        m = c.morph.iloc[idx]
+        cols = [np.log1p(m[k].to_numpy(float)) if log else m[k].to_numpy(float) for k, (_, log) in FEATURES.items()]
+        x = np.column_stack(cols)
+        return np.column_stack([x, c.age[idx], c.male[idx]]) if self.clinical else x
+
+    def fit(self, c, idx):
+        x = self._x(c, idx)
+        self.median = np.nanmedian(x, 0)
+        x = np.where(np.isnan(x), self.median, x)
+        self.mean, self.std = x.mean(0), np.where(x.std(0) < 1e-8, 1.0, x.std(0))
+        self.model = CoxPHSurvivalAnalysis(alpha=self.alpha).fit((x - self.mean) / self.std, c.y[idx])
+        return self
+
+    def risk(self, c, idx):
+        x = self._x(c, idx)
+        return self.model.predict((np.where(np.isnan(x), self.median, x) - self.mean) / self.std)
+
+
+class PooledCox:
+    """Mean node embedding per patient -> PCA -> ridge Cox, with age and sex (``clinical``) and optionally the hand-made node numbers."""
+
+    def __init__(self, n_components: int = 8, alpha: float = 10.0, hand: bool = False, tnm: bool = False, clinical: bool = True) -> None:
+        self.n_components, self.alpha, self.hand, self.tnm, self.clinical = n_components, alpha, hand, tnm, clinical
 
     def _pooled(self, c, idx):
         return np.stack([c.bags[i].mean(0) for i in idx])
@@ -74,7 +107,7 @@ class PooledCox:
             self.emb_mean, self.emb_std = pooled.mean(0), np.where(pooled.std(0) < 1e-8, 1.0, pooled.std(0))
             self.pca = PCA(self.n_components, random_state=0).fit((pooled - self.emb_mean) / self.emb_std)
         z = self.pca.transform((pooled - self.emb_mean) / self.emb_std)
-        cols = [z, c.age[idx, None], c.male[idx, None]] + ([c.hand_features()[idx]] if self.hand else []) + ([tnm] if self.tnm else [])
+        cols = [z] + ([c.age[idx, None], c.male[idx, None]] if self.clinical else []) + ([c.hand_features()[idx]] if self.hand else []) + ([tnm] if self.tnm else [])
         return np.column_stack(cols)
 
     def fit(self, c, idx):

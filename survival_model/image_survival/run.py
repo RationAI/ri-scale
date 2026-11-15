@@ -23,8 +23,10 @@ from image_survival.models import (
     FULL,
     TNM,
     AttentionMIL,
+    AgeOnlyCox,
     ClinicalCox,
     ExcelCox,
+    MorphCox,
     NodeRatioCox,
     PooledCox,
     TileRatioCox,
@@ -32,6 +34,12 @@ from image_survival.models import (
 
 MODELS = {
     "clinical": lambda: ClinicalCox(),
+    # images and nothing else (no age, sex, staging): the pooled embedding, the attention model, the mask measurements
+    "age_only": lambda: AgeOnlyCox(),
+    "pooled_pca8_img": lambda: PooledCox(n_components=8, clinical=False),
+    "pooled_pca16_img": lambda: PooledCox(n_components=16, clinical=False),
+    "morph_only": lambda: MorphCox(),
+    "morph_age_sex": lambda: MorphCox(clinical=True),
     "pooled_pca8": lambda: PooledCox(n_components=8),
     "pooled_pca8_hand": lambda: PooledCox(n_components=8, hand=True),
     "pooled_pca16": lambda: PooledCox(n_components=16),
@@ -52,6 +60,7 @@ MODELS = {
 }
 NEEDS_EXCEL = {"excel_tnm", "excel_full", "pooled_pca8_tnm"}
 NEEDS_TILES = {"tile_ratio", "tile_burden", "tile_full"}
+NEEDS_MORPH = {"morph_only", "morph_age_sex"}
 
 
 def score(y_train, y_test, risk, horizons=(3.0, 5.0)) -> dict:
@@ -73,6 +82,7 @@ def main() -> None:
     ap.add_argument("--models", default=",".join(MODELS)); ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--repeats", type=int, default=5); ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--tiles", default=None, help="tiles.npz of build_tiles.py, for the tile_* models")
+    ap.add_argument("--morph", default=None, help="features.csv of node_morphology.py, for the morph_* models")
     ap.add_argument("--embedding", default="core", choices=["core", "both"], help="node core tiles, or core + margin tiles")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -80,6 +90,11 @@ def main() -> None:
     cohort = Cohort(a.nodes, a.patients, embedding=a.embedding, tiles_path=a.tiles)
     print(json.dumps(cohort.summary()), flush=True)
     names = a.models.split(",")
+    if a.morph:
+        cohort.morph = pd.read_csv(a.morph).drop_duplicates("patient_id").set_index("patient_id").reindex(cohort.patients["patient_id"])
+    else:
+        print("no --morph, skipping", sorted(NEEDS_MORPH & set(names)))
+        names = [n for n in names if n not in NEEDS_MORPH]
     if cohort.tiles is None:
         print("no --tiles, skipping", sorted(NEEDS_TILES & set(names)))
         names = [n for n in names if n not in NEEDS_TILES]
@@ -98,11 +113,14 @@ def main() -> None:
 
     metrics = [c for c in df.columns if c not in ("model", "repeat", "fold")]
     summary = df.groupby("model")[metrics].agg(["mean", "std"]).reindex(names)
-    base = df[df.model == "clinical"].set_index(["repeat", "fold"])["c_index"] if "clinical" in names else None
-    if base is not None:
-        gain = {n: (df[df.model == n].set_index(["repeat", "fold"])["c_index"] - base) for n in names if n != "clinical"}
-        summary[("c_index_gain_vs_clinical", "mean")] = pd.Series({n: g.mean() for n, g in gain.items()})
-        summary[("folds_better_than_clinical", "frac")] = pd.Series({n: (g > 0).mean() for n, g in gain.items()})
+    for ref, label in (("clinical", "clinical"), ("age_only", "age_only")):          # clinical = age + sex
+        if ref not in names:
+            continue
+        base = df[df.model == ref].set_index(["repeat", "fold"])["c_index"]
+        gain = {n: (df[df.model == n].set_index(["repeat", "fold"])["c_index"] - base) for n in names if n != ref}
+        summary[(f"c_index_gain_vs_{label}", "mean")] = pd.Series({n: g.mean() for n, g in gain.items()})
+        summary[(f"c_index_gain_vs_{label}", "sd_of_repeat_means")] = pd.Series({n: g.groupby(level="repeat").mean().std() for n, g in gain.items()})
+        summary[(f"folds_better_than_{label}", "frac")] = pd.Series({n: (g > 0).mean() for n, g in gain.items()})
     summary.round(3).to_csv(f"{a.out}/summary.csv")
     pd.set_option("display.width", 220); pd.set_option("display.max_columns", 30)
     print(summary.round(3).to_string())
